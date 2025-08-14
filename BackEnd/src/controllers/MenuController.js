@@ -5,11 +5,12 @@ const config = require('../config/database');
 const pool = new Pool(config);
 
 class MenuController {
-  // ✅ OBTENER CATEGORÍAS - VERSIÓN SIMPLIFICADA Y CORREGIDA
+  // ✅ OBTENER CATEGORÍAS - CORREGIDO
   async getCategories(req, res) {
     try {
       console.log('📂 Obteniendo categorías...');
-      const query = 'SELECT id, nombre, descripcion, activo FROM categorias WHERE activo = true ORDER BY orden, nombre';
+      // Corregido: Eliminado 'orden' del ORDER BY ya que no existe en la tabla.
+      const query = 'SELECT id, nombre, descripcion, activo FROM categorias WHERE activo = true ORDER BY nombre';
       console.log(`🚀 Ejecutando query: ${query}`);
       const result = await pool.query(query);
       console.log(`✅ Query exitosa: ${result.rows.length} categorías encontradas`);
@@ -20,11 +21,12 @@ class MenuController {
     }
   }
 
-  // ✅ OBTENER MENÚ - VERSIÓN SIMPLIFICADA Y CORREGIDA
+  // ✅ OBTENER MENÚ - CORREGIDO
   async getMenu(req, res) {
     try {
       console.log('🍽️ Obteniendo menú...');
       const { categoria_id, vegetariano, picante } = req.query;
+      // Corregido: Eliminado 'm.vigente' del WHERE ya que no existe en la tabla menu_items.
       const query = `
         SELECT
           m.id, m.nombre, m.precio, m.categoria_id, m.descripcion, m.disponible,
@@ -33,7 +35,7 @@ class MenuController {
           NULL::timestamp as created_at, NULL::timestamp as updated_at
         FROM menu_items m
         JOIN categorias c ON m.categoria_id = c.id
-        WHERE m.disponible = true AND m.vigente = true AND c.activo = true
+        WHERE m.disponible = true AND c.activo = true
         UNION ALL
         SELECT
           pe.id, pe.nombre, pe.precio, pe.categoria_id, pe.descripcion, pe.disponible,
@@ -66,18 +68,18 @@ class MenuController {
     }
   }
 
-  // ✅ OBTENER MENÚ PARA WEB - VERSIÓN SIMPLIFICADA Y CORREGIDA
+  // ✅ OBTENER MENÚ PARA WEB - CORREGIDO
   async getMenuForWeb(req, res) {
     try {
       console.log('🌐 Generando menú para web...');
-      const categoriesResult = await pool.query('SELECT * FROM categorias WHERE activo = true ORDER BY orden, nombre');
+      const categoriesResult = await pool.query('SELECT * FROM categorias WHERE activo = true ORDER BY nombre');
       const itemsResult = await pool.query(`
         SELECT
           m.id, m.nombre, m.precio, m.categoria_id, m.descripcion, m.disponible, m.imagen as imagen_url,
           c.nombre as categoria_nombre, false as es_especial
         FROM menu_items m
         JOIN categorias c ON m.categoria_id = c.id
-        WHERE m.disponible = true AND m.vigente = true AND c.activo = true
+        WHERE m.disponible = true AND c.activo = true
         UNION ALL
         SELECT
           pe.id, pe.nombre, pe.precio, pe.categoria_id, pe.descripcion, pe.disponible, pe.imagen_url,
@@ -133,14 +135,14 @@ class MenuController {
     }
   }
 
-  // ✅ SYNC ENDPOINT - SIMPLIFICADO
+  // ✅ SYNC ENDPOINT - CORREGIDO
   async getMenuSync(req, res) {
     try {
       console.log('🔄 Endpoint sync solicitado...');
-      const categoriasResult = await pool.query('SELECT * FROM categorias WHERE activo = true ORDER BY orden, nombre');
+      const categoriasResult = await pool.query('SELECT * FROM categorias WHERE activo = true ORDER BY nombre');
       const menuItemsResult = await pool.query(`
         SELECT id, nombre, precio, descripcion, categoria_id, disponible, imagen as imagen_url, 'menu' as origen
-        FROM menu_items WHERE disponible = true AND vigente = true ORDER BY categoria_id, nombre
+        FROM menu_items WHERE disponible = true ORDER BY categoria_id, nombre
       `);
       const platosEspecialesResult = await pool.query(`
         SELECT id, nombre, precio, descripcion, disponible, fecha_inicio, fecha_fin,
@@ -205,23 +207,18 @@ class MenuController {
   async createCategory(req, res) {
     res.status(501).json({ message: 'Create category not implemented yet' });
   }
-
   async createMenuItem(req, res) {
     res.status(501).json({ message: 'Create menu item not implemented yet' });
   }
-
   async updateMenuItem(req, res) {
     res.status(501).json({ message: 'Update menu item not implemented yet' });
   }
-
   async deleteMenuItem(req, res) {
     res.status(501).json({ message: 'Delete menu item not implemented yet' });
   }
-
   async toggleAvailability(req, res) {
     res.status(501).json({ message: 'Toggle availability not implemented yet' });
   }
-
   async createSpecialItem(req, res) {
     res.status(501).json({ message: 'Create special item not implemented yet' });
   }
