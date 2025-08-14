@@ -202,6 +202,10 @@ class MenuController {
   }
 
   // Métodos de admin (placeholders para evitar crash)
+  async createCategory(req, res) {
+    res.status(501).json({ message: 'Create category not implemented yet' });
+  }
+
   async createMenuItem(req, res) {
     res.status(501).json({ message: 'Create menu item not implemented yet' });
   }
