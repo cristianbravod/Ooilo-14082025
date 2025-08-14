@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Cocina - Restaurante</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍽️</text></svg>">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="logo">🍽️</div>
+                <h1>Sistema de Cocina</h1>
+                <p>Gestión de Órdenes en Tiempo Real</p>
+            </div>
+            
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="email">Usuario / Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        class="form-input" 
+                        required 
+                        autocomplete="email"
+                        placeholder="usuario@restaurante.com"
+                    >
+                    <div class="error-message" id="email-error"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="password">Contraseña</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        class="form-input" 
+                        required 
+                        autocomplete="current-password"
+                        placeholder="••••••••"
+                    >
+                    <div class="error-message" id="password-error"></div>
+                </div>
+                
+                <button type="submit" class="login-btn" id="login-btn">
+                    <span id="login-btn-text">Iniciar Sesión</span>
+                </button>
+                
+                <div class="error-message" id="login-error"></div>
+            </form>
+            
+            <!-- Estado del servidor -->
+            <div id="server-status" class="server-status disconnected">
+                <span class="status-dot"></span>
+                <span id="server-status-text">Conectando con el servidor...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="app-container">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span>🍽️</span>
+                    <span id="app-title">Sistema Cocina</span>
+                </div>
+                
+                <nav class="nav-tabs">
+                    <button class="nav-tab active" onclick="showSection('dashboard')" id="dashboard-tab">
+                        📊 Dashboard
+                    </button>
+                    <button class="nav-tab" onclick="showSection('kitchen')" id="kitchen-tab">
+                        👨‍🍳 Cocina
+                    </button>
+                    <button class="nav-tab" onclick="showSection('admin')" id="admin-tab">
+                        👥 Administración
+                    </button>
+                    <button class="nav-tab" onclick="showSection('tables')" id="tables-tab">
+                        🪑 Mesas
+                    </button>
+                </nav>
+
+                <div class="user-info">
+                    <div class="user-details">
+                        <div class="user-name" id="user-name">Usuario</div>
+                        <div class="user-role" id="user-role">Rol</div>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="status-dot" id="connection-dot"></div>
+                        <span id="connection-status">Conectado</span>
+                    </div>
+                    <button class="logout-btn" onclick="logout()">
+                        🚪 <span>Salir</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-container">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content-section active">
+                <div class="dashboard-stats">
+                    <div class="stat-card danger">
+                        <div class="icon">⚠️</div>
+                        <div class="stat-number" id="pending-orders">0</div>
+                        <div class="stat-label">Pedidos Pendientes</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="icon">🔥</div>
+                        <div class="stat-number" id="preparing-orders">0</div>
+                        <div class="stat-label">En Preparación</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="icon">✅</div>
+                        <div class="stat-number" id="ready-orders">0</div>
+                        <div class="stat-label">Listos para Entregar</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon">💰</div>
+                        <div class="stat-number" id="total-sales">$0</div>
+                        <div class="stat-label">Ventas del Día</div>
+                    </div>
+                </div>
+
+                <h2>📊 Resumen de Órdenes Activas</h2>
+                <div id="dashboard-orders" class="orders-grid">
+                    <!-- Las órdenes se cargarán aquí dinámicamente -->
+                </div>
+            </section>
+
+            <!-- Kitchen Section -->
+            <section id="kitchen" class="content-section">
+                <div class="section-header">
+                    <h2>👨‍🍳 Panel de Cocina</h2>
+                    <div class="kitchen-controls">
+                        <span class="control-label">Auto-refresh:</span>
+                        <button class="btn btn-success" id="auto-refresh-btn" onclick="toggleAutoRefresh()">
+                            ✅ Activo
+                        </button>
+                        <button class="btn btn-primary" onclick="refreshKitchenOrders()">
+                            🔄 Actualizar
+                        </button>
+                        <div id="last-update" class="last-update">
+                            Última actualización: --:--:--
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="kitchen-orders" class="orders-grid kitchen-grid">
+                    <!-- Las órdenes de cocina se cargarán aquí dinámicamente -->
+                </div>
+            </section>
+
+            <!-- Admin Section -->
+            <section id="admin" class="content-section">
+                <div class="section-header">
+                    <h2>👥 Panel de Administración</h2>
+                    <div class="admin-controls">
+                        <button class="btn btn-primary" onclick="refreshOrders()">
+                            🔄 Actualizar Órdenes
+                        </button>
+                        <button class="btn btn-secondary" onclick="exportOrders()">
+                            📊 Exportar Datos
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="admin-orders" class="orders-grid admin-grid">
+                    <!-- Las órdenes de administración se cargarán aquí dinámicamente -->
+                </div>
+            </section>
+
+            <!-- Tables Section -->
+            <section id="tables" class="content-section">
+                <div class="section-header">
+                    <h2>🪑 Gestión de Mesas</h2>
+                    <div class="tables-controls">
+                        <button class="btn btn-primary" onclick="refreshTables()">
+                            🔄 Actualizar Mesas
+                        </button>
+                        <button class="btn btn-success" onclick="addTable()">
+                            ➕ Nueva Mesa
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="tables-grid" class="tables-grid">
+                    <!-- Las mesas se cargarán aquí dinámicamente -->
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div id="order-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Detalles de la Orden</h3>
+                <button class="modal-close" onclick="closeOrderModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- El contenido se cargará dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeOrderModal()">Cerrar</button>
+                <button class="btn btn-primary" onclick="updateOrderFromModal()">Actualizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification" class="notification" style="display: none;"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Cargando...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/cocina-api.js"></script>
+    <script src="js/cocina-ui.js"></script>
+    <script src="js/cocina-main.js"></script>
+</body>
+</html>

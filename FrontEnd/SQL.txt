@@ -1,0 +1,254 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.categorias (
+  id integer NOT NULL DEFAULT nextval('categorias_id_seq'::regclass),
+  nombre character varying NOT NULL,
+  descripcion text,
+  imagen character varying,
+  activo boolean DEFAULT true,
+  fecha_creacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT categorias_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.configuracion (
+  id integer NOT NULL DEFAULT nextval('configuracion_id_seq'::regclass),
+  clave character varying NOT NULL UNIQUE,
+  valor text NOT NULL,
+  descripcion text,
+  tipo character varying DEFAULT 'string'::character varying,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT configuracion_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.detalle_pedidos (
+  id integer NOT NULL DEFAULT nextval('detalle_pedidos_id_seq'::regclass),
+  pedido_id integer,
+  plato_especial_id integer,
+  cantidad integer NOT NULL CHECK (cantidad > 0),
+  precio_unitario numeric NOT NULL,
+  subtotal numeric NOT NULL,
+  observaciones text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  menu_item_id integer,
+  CONSTRAINT detalle_pedidos_pkey PRIMARY KEY (id),
+  CONSTRAINT detalle_pedidos_plato_especial_id_fkey FOREIGN KEY (plato_especial_id) REFERENCES public.platos_especiales(id),
+  CONSTRAINT detalle_pedidos_menu_item_id_fkey FOREIGN KEY (menu_item_id) REFERENCES public.menu_items(id),
+  CONSTRAINT detalle_pedidos_pedido_id_fkey FOREIGN KEY (pedido_id) REFERENCES public.pedidos(id)
+);
+CREATE TABLE public.detalle_ventas (
+  id integer NOT NULL DEFAULT nextval('detalle_ventas_id_seq'::regclass),
+  venta_id integer,
+  producto_nombre character varying NOT NULL,
+  categoria character varying,
+  cantidad integer NOT NULL,
+  precio_unitario numeric NOT NULL,
+  subtotal numeric NOT NULL,
+  es_plato_especial boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT detalle_ventas_pkey PRIMARY KEY (id),
+  CONSTRAINT detalle_ventas_venta_id_fkey FOREIGN KEY (venta_id) REFERENCES public.ventas(id)
+);
+CREATE TABLE public.image_metadata (
+  id integer NOT NULL DEFAULT nextval('image_metadata_id_seq'::regclass),
+  filename character varying NOT NULL UNIQUE,
+  original_name character varying,
+  size_bytes integer,
+  width integer,
+  height integer,
+  format character varying,
+  qualities jsonb,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT image_metadata_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.inventario (
+  id integer NOT NULL DEFAULT nextval('inventario_id_seq'::regclass),
+  producto_id integer,
+  stock_actual integer NOT NULL DEFAULT 0,
+  stock_minimo integer DEFAULT 0,
+  stock_maximo integer DEFAULT 0,
+  unidad_medida character varying DEFAULT 'unidad'::character varying,
+  costo_unitario numeric,
+  proveedor character varying,
+  fecha_ultima_compra date,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT inventario_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.menu_items (
+  id integer NOT NULL DEFAULT nextval('menu_items_id_seq'::regclass),
+  nombre character varying NOT NULL,
+  descripcion text,
+  precio numeric NOT NULL,
+  categoria_id integer,
+  imagen character varying,
+  ingredientes ARRAY,
+  disponible boolean DEFAULT true,
+  vegetariano boolean DEFAULT false,
+  picante boolean DEFAULT false,
+  tiempo_preparacion integer,
+  fecha_creacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  es_especial boolean DEFAULT false,
+  vegano boolean DEFAULT false,
+  sin_gluten boolean DEFAULT false,
+  calorias integer,
+  imagen_thumbnail character varying,
+  imagen_medium character varying,
+  imagen_large character varying,
+  imagen_filename character varying,
+  imagen_metadata jsonb,
+  CONSTRAINT menu_items_pkey PRIMARY KEY (id),
+  CONSTRAINT menu_items_categoria_id_fkey FOREIGN KEY (categoria_id) REFERENCES public.categorias(id)
+);
+CREATE TABLE public.mesa_historial (
+  id integer NOT NULL DEFAULT nextval('mesa_historial_id_seq'::regclass),
+  mesa_id integer NOT NULL,
+  estado_anterior character varying,
+  estado_nuevo character varying,
+  pedido_id integer,
+  usuario character varying,
+  motivo text,
+  fecha_cambio timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT mesa_historial_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_mesa_historial_mesa FOREIGN KEY (mesa_id) REFERENCES public.mesas(id),
+  CONSTRAINT fk_mesa_historial_pedido FOREIGN KEY (pedido_id) REFERENCES public.pedidos(id)
+);
+CREATE TABLE public.mesas (
+  id integer NOT NULL DEFAULT nextval('mesas_id_seq'::regclass),
+  numero character varying NOT NULL,
+  capacidad integer NOT NULL,
+  ubicacion character varying,
+  disponible boolean DEFAULT true,
+  fecha_creacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  nombre character varying NOT NULL,
+  tipo character varying DEFAULT 'mesa'::character varying CHECK (tipo::text = ANY (ARRAY['mesa'::character varying, 'pickup'::character varying, 'barra'::character varying]::text[])),
+  estado character varying DEFAULT 'disponible'::character varying CHECK (estado::text = ANY (ARRAY['disponible'::character varying, 'ocupada'::character varying, 'limpieza'::character varying, 'fuera_servicio'::character varying]::text[])),
+  descripcion text,
+  activa boolean DEFAULT true,
+  creado_por character varying DEFAULT 'Sistema'::character varying,
+  CONSTRAINT mesas_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.orden_items (
+  id integer NOT NULL DEFAULT nextval('orden_items_id_seq'::regclass),
+  orden_id integer,
+  menu_item_id integer,
+  cantidad integer NOT NULL CHECK (cantidad > 0),
+  precio_unitario numeric NOT NULL,
+  instrucciones_especiales text,
+  fecha_creacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  plato_especial_id integer,
+  estado_item character varying DEFAULT 'pendiente'::character varying,
+  CONSTRAINT orden_items_pkey PRIMARY KEY (id),
+  CONSTRAINT orden_items_menu_item_id_fkey FOREIGN KEY (menu_item_id) REFERENCES public.menu_items(id),
+  CONSTRAINT orden_items_plato_especial_id_fkey FOREIGN KEY (plato_especial_id) REFERENCES public.platos_especiales(id),
+  CONSTRAINT orden_items_orden_id_fkey FOREIGN KEY (orden_id) REFERENCES public.ordenes(id)
+);
+CREATE TABLE public.ordenes (
+  id integer NOT NULL DEFAULT nextval('ordenes_id_seq'::regclass),
+  usuario_id integer,
+  total numeric NOT NULL,
+  estado character varying DEFAULT 'pendiente'::character varying CHECK (estado::text = ANY (ARRAY['pendiente'::character varying::text, 'confirmada'::character varying::text, 'preparando'::character varying::text, 'lista'::character varying::text, 'entregada'::character varying::text, 'cancelada'::character varying::text])),
+  direccion_entrega text,
+  metodo_pago character varying NOT NULL CHECK (metodo_pago::text = ANY (ARRAY['efectivo'::character varying::text, 'tarjeta'::character varying::text, 'transferencia'::character varying::text])),
+  notas text,
+  fecha_creacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  tipo_orden character varying DEFAULT 'mesa'::character varying CHECK (tipo_orden::text = ANY (ARRAY['mesa'::character varying::text, 'delivery'::character varying::text, 'pickup'::character varying::text])),
+  mesa character varying,
+  CONSTRAINT ordenes_pkey PRIMARY KEY (id),
+  CONSTRAINT ordenes_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+CREATE TABLE public.pedidos (
+  id integer NOT NULL DEFAULT nextval('pedidos_id_seq'::regclass),
+  mesa_id integer,
+  numero_pedido character varying NOT NULL UNIQUE,
+  estado character varying DEFAULT 'pendiente'::character varying CHECK (estado::text = ANY (ARRAY['pendiente'::character varying::text, 'preparando'::character varying::text, 'listo'::character varying::text, 'entregado'::character varying::text, 'cancelado'::character varying::text])),
+  subtotal numeric NOT NULL DEFAULT 0,
+  descuento numeric DEFAULT 0,
+  impuestos numeric DEFAULT 0,
+  total numeric NOT NULL DEFAULT 0,
+  observaciones text,
+  fecha_pedido timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  fecha_entrega timestamp without time zone,
+  fecha_completado timestamp without time zone,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  mesa_nombre character varying,
+  mesa_tipo character varying,
+  camarero character varying,
+  CONSTRAINT pedidos_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.platos_especiales (
+  id integer NOT NULL DEFAULT nextval('platos_especiales_id_seq'::regclass),
+  nombre character varying NOT NULL,
+  precio numeric NOT NULL CHECK (precio >= 0::numeric),
+  descripcion text,
+  disponible boolean DEFAULT true,
+  fecha_inicio date DEFAULT CURRENT_DATE,
+  fecha_fin date,
+  imagen_url character varying,
+  tiempo_preparacion integer DEFAULT 0,
+  ingredientes ARRAY,
+  alergenos ARRAY,
+  calorias integer,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  vegetariano boolean DEFAULT false,
+  picante boolean DEFAULT false,
+  imagen character varying,
+  fecha_modificacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  imagen_thumbnail character varying,
+  imagen_medium character varying,
+  imagen_large character varying,
+  imagen_filename character varying,
+  imagen_metadata jsonb,
+  categoria_id integer DEFAULT 6,
+  vigente boolean NOT NULL DEFAULT true,
+  CONSTRAINT platos_especiales_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.reservaciones (
+  id integer NOT NULL DEFAULT nextval('reservaciones_id_seq'::regclass),
+  usuario_id integer,
+  mesa_id integer,
+  fecha date NOT NULL,
+  hora time without time zone NOT NULL,
+  numero_personas integer NOT NULL CHECK (numero_personas > 0),
+  estado character varying DEFAULT 'pendiente'::character varying CHECK (estado::text = ANY (ARRAY['pendiente'::character varying::text, 'confirmada'::character varying::text, 'cancelada'::character varying::text, 'completada'::character varying::text])),
+  solicitudes_especiales text,
+  fecha_creacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT reservaciones_pkey PRIMARY KEY (id),
+  CONSTRAINT reservaciones_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id),
+  CONSTRAINT reservaciones_mesa_id_fkey FOREIGN KEY (mesa_id) REFERENCES public.mesas(id)
+);
+CREATE TABLE public.usuarios (
+  id integer NOT NULL DEFAULT nextval('usuarios_id_seq'::regclass),
+  nombre character varying NOT NULL,
+  email character varying NOT NULL UNIQUE,
+  password character varying NOT NULL,
+  telefono character varying NOT NULL,
+  direccion text,
+  rol character varying DEFAULT 'cliente'::character varying CHECK (rol::text = ANY (ARRAY['cliente'::character varying::text, 'admin'::character varying::text])),
+  activo boolean DEFAULT true,
+  fecha_creacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  fecha_modificacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT usuarios_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.ventas (
+  id integer NOT NULL DEFAULT nextval('ventas_id_seq'::regclass),
+  pedido_id integer,
+  mesa_numero character varying NOT NULL,
+  total numeric NOT NULL,
+  cantidad_items integer NOT NULL,
+  metodo_pago character varying DEFAULT 'efectivo'::character varying,
+  fecha_venta timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  mes integer DEFAULT EXTRACT(month FROM fecha_venta),
+  año integer DEFAULT EXTRACT(year FROM fecha_venta),
+  dia_semana integer DEFAULT EXTRACT(dow FROM fecha_venta),
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT ventas_pkey PRIMARY KEY (id),
+  CONSTRAINT ventas_pedido_id_fkey FOREIGN KEY (pedido_id) REFERENCES public.pedidos(id)
+);

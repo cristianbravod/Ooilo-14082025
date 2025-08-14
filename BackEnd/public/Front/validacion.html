@@ -1,0 +1,594 @@
+
+<html>
+<head>
+    <title>Validación del Sistema</title>
+</head>
+<body>
+    <h1>🔍 Validador del Sistema de Restaurante</h1>
+    <button onclick="ejecutarValidacion()" style="padding: 10px 20px; font-size: 16px;">
+        🚀 Ejecutar Validación Completa
+    </button>
+    <button onclick="validacionRapida()" style="padding: 10px 0px; font-size: 16px;">
+        ⚡ Validación Rápida
+    </button>
+    
+    <div id="resultados" style="margin-top: 20px; padding: 10px; background: #f5f5f5;">
+        <p>Presiona un botón para iniciar la validación...</p>
+    </div>
+
+    <script>
+
+
+// SCRIPT DE VALIDACIÓN Y PRUEBA DEL SISTEMA COMPLETO
+// Ejecutar este script para validar que todos los componentes estén funcionando
+
+class SistemaValidator {
+  constructor() {
+    this.API_BASE_URL = 'http://192.1.1.16:3000/api';
+    this.errores = [];
+    this.warnings = [];
+    this.exitos = [];
+  }
+
+  // ==========================================
+  // VALIDACIÓN COMPLETA DEL SISTEMA
+  // ==========================================
+  async validarSistemaCompleto() {
+    console.log('🚀 === INICIANDO VALIDACIÓN COMPLETA DEL SISTEMA ===');
+    
+    try {
+      // 1. Validar conexión con backend
+      await this.validarConexionBackend();
+      
+      // 2. Validar endpoints de mesas
+      await this.validarEndpointsMesas();
+      
+      // 3. Validar endpoints de órdenes
+      await this.validarEndpointsOrdenes();
+      
+      // 4. Validar endpoints de menú
+      await this.validarEndpointsMenu();
+      
+      // 5. Prueba de flujo completo
+      await this.pruebaFlujoCompleto();
+      
+      // 6. Mostrar resultados
+      this.mostrarResultados();
+      
+      return {
+        success: this.errores.length === 0,
+        errores: this.errores,
+        warnings: this.warnings,
+        exitos: this.exitos
+      };
+      
+    } catch (error) {
+      console.error('❌ Error durante la validación:', error);
+      this.errores.push(`Error general: ${error.message}`);
+      this.mostrarResultados();
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ==========================================
+  // VALIDACIONES ESPECÍFICAS
+  // ==========================================
+  async validarConexionBackend() {
+    console.log('\n🔍 1. VALIDANDO CONEXIÓN CON BACKEND...');
+    
+    try {
+      const response = await fetch(`${this.API_BASE_URL}/health`, {
+        method: 'GET',
+        timeout: 10000
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        this.exitos.push('✅ Conexión con backend establecida');
+        console.log('✅ Backend responde correctamente');
+        return true;
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      this.errores.push(`❌ Backend no responde: ${error.message}`);
+      console.error('❌ Backend no responde:', error.message);
+      return false;
+    }
+  }
+
+  async validarEndpointsMesas() {
+    console.log('\n🪑 2. VALIDANDO ENDPOINTS DE MESAS...');
+    
+    const endpoints = [
+      { method: 'GET', path: '/mesas', name: 'Obtener mesas' },
+      { method: 'POST', path: '/mesas', name: 'Crear mesa', body: {
+        nombre: 'Mesa Test',
+        numero: 999,
+        capacidad: 4,
+        tipo: 'mesa',
+        ubicacion: 'Test'
+      }}
+    ];
+    
+    for (const endpoint of endpoints) {
+      try {
+        const options = {
+          method: endpoint.method,
+          headers: { 'Content-Type': 'application/json' }
+        };
+        
+        if (endpoint.body) {
+          options.body = JSON.stringify(endpoint.body);
+        }
+        
+        const response = await fetch(`${this.API_BASE_URL}${endpoint.path}`, options);
+        
+        if (response.ok) {
+          this.exitos.push(`✅ ${endpoint.name} - OK`);
+          console.log(`✅ ${endpoint.name} funciona correctamente`);
+          
+          // Si fue crear mesa, intentar eliminar la mesa de prueba
+          if (endpoint.method === 'POST') {
+            const data = await response.json();
+            if (data.mesa?.id || data.id) {
+              await this.limpiarMesaPrueba(data.mesa?.id || data.id);
+            }
+          }
+        } else {
+          this.warnings.push(`⚠️ ${endpoint.name} - HTTP ${response.status}`);
+          console.log(`⚠️ ${endpoint.name} devolvió HTTP ${response.status}`);
+        }
+      } catch (error) {
+        this.errores.push(`❌ ${endpoint.name} - ${error.message}`);
+        console.error(`❌ ${endpoint.name}:`, error.message);
+      }
+    }
+  }
+
+  async validarEndpointsOrdenes() {
+    console.log('\n🍽️ 3. VALIDANDO ENDPOINTS DE ÓRDENES...');
+    
+    const endpoints = [
+      { method: 'GET', path: '/ordenes/activas', name: 'Órdenes activas' },
+      { method: 'POST', path: '/ordenes/quick', name: 'Crear orden rápida', body: {
+        mesa: 'Mesa Test',
+        items: [{
+          menu_item_id: 1,
+          cantidad: 1,
+          precio: 10000,
+          nombre: 'Test Item'
+        }],
+        total: 10000,
+        cliente: 'Test Cliente'
+      }}
+    ];
+    
+    for (const endpoint of endpoints) {
+      try {
+        const options = {
+          method: endpoint.method,
+          headers: { 'Content-Type': 'application/json' }
+        };
+        
+        if (endpoint.body) {
+          options.body = JSON.stringify(endpoint.body);
+        }
+        
+        const response = await fetch(`${this.API_BASE_URL}${endpoint.path}`, options);
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.exitos.push(`✅ ${endpoint.name} - OK`);
+          console.log(`✅ ${endpoint.name} funciona correctamente`);
+          
+          // Guardar ID de orden para pruebas posteriores
+          if (endpoint.method === 'POST' && data.orden?.id) {
+            this.ordenPruebaId = data.orden.id;
+          }
+        } else {
+          this.warnings.push(`⚠️ ${endpoint.name} - HTTP ${response.status}`);
+          console.log(`⚠️ ${endpoint.name} devolvió HTTP ${response.status}`);
+        }
+      } catch (error) {
+        this.errores.push(`❌ ${endpoint.name} - ${error.message}`);
+        console.error(`❌ ${endpoint.name}:`, error.message);
+      }
+    }
+  }
+
+  async validarEndpointsMenu() {
+    console.log('\n🍽️ 4. VALIDANDO ENDPOINTS DE MENÚ...');
+    
+    const endpoints = [
+      { method: 'GET', path: '/menu', name: 'Obtener menú' },
+      { method: 'GET', path: '/menu/categorias', name: 'Obtener categorías' },
+      { method: 'GET', path: '/menu/especiales', name: 'Obtener especiales' }
+    ];
+    
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(`${this.API_BASE_URL}${endpoint.path}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.exitos.push(`✅ ${endpoint.name} - OK`);
+          console.log(`✅ ${endpoint.name} funciona correctamente`);
+          
+          // Validar estructura de datos
+          if (Array.isArray(data)) {
+            console.log(`   📊 Datos obtenidos: ${data.length} items`);
+          }
+        } else {
+          this.warnings.push(`⚠️ ${endpoint.name} - HTTP ${response.status}`);
+          console.log(`⚠️ ${endpoint.name} devolvió HTTP ${response.status}`);
+        }
+      } catch (error) {
+        this.errores.push(`❌ ${endpoint.name} - ${error.message}`);
+        console.error(`❌ ${endpoint.name}:`, error.message);
+      }
+    }
+  }
+
+  async pruebaFlujoCompleto() {
+    console.log('\n🔄 5. PRUEBA DE FLUJO COMPLETO...');
+    
+    try {
+      // 1. Crear mesa
+      console.log('   📝 Creando mesa de prueba...');
+      const mesaResponse = await fetch(`${this.API_BASE_URL}/mesas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: 'Mesa Flujo Test',
+          numero: 888,
+          capacidad: 4,
+          tipo: 'mesa',
+          ubicacion: 'Test Zone'
+        })
+      });
+      
+      let mesaId = null;
+      if (mesaResponse.ok) {
+        const mesaData = await mesaResponse.json();
+        mesaId = mesaData.mesa?.id || mesaData.id;
+        this.exitos.push('✅ Mesa de prueba creada');
+        console.log('   ✅ Mesa creada correctamente');
+      } else {
+        throw new Error('No se pudo crear mesa de prueba');
+      }
+      
+      // 2. Crear orden para la mesa
+      console.log('   🍽️ Creando orden de prueba...');
+      const ordenResponse = await fetch(`${this.API_BASE_URL}/ordenes/quick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mesa: 'Mesa Flujo Test',
+          items: [{
+            menu_item_id: 1,
+            cantidad: 1,
+            precio: 15000,
+            nombre: 'Plato de Prueba'
+          }],
+          total: 15000,
+          cliente: 'Cliente Flujo Test'
+        })
+      });
+      
+      let ordenId = null;
+      if (ordenResponse.ok) {
+        const ordenData = await ordenResponse.json();
+        ordenId = ordenData.orden?.id;
+        this.exitos.push('✅ Orden de prueba creada');
+        console.log('   ✅ Orden creada correctamente');
+      } else {
+        throw new Error('No se pudo crear orden de prueba');
+      }
+      
+      // 3. Cambiar estado de mesa
+      if (mesaId) {
+        console.log('   🔄 Probando cambio de estado de mesa...');
+        const estadoResponse = await fetch(`${this.API_BASE_URL}/mesas/${mesaId}/estado`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: 'ocupada' })
+        });
+        
+        if (estadoResponse.ok) {
+          this.exitos.push('✅ Cambio de estado de mesa funciona');
+          console.log('   ✅ Estado de mesa cambiado correctamente');
+        } else {
+          this.warnings.push('⚠️ Cambio de estado de mesa falló');
+        }
+      }
+      
+      // 4. Cambiar estado de orden
+      if (ordenId) {
+        console.log('   🔄 Probando cambio de estado de orden...');
+        const estadoOrdenResponse = await fetch(`${this.API_BASE_URL}/ordenes/${ordenId}/estado`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: 'preparando' })
+        });
+        
+        if (estadoOrdenResponse.ok) {
+          this.exitos.push('✅ Cambio de estado de orden funciona');
+          console.log('   ✅ Estado de orden cambiado correctamente');
+        } else {
+          this.warnings.push('⚠️ Cambio de estado de orden falló');
+        }
+      }
+      
+      // 5. Limpiar datos de prueba
+      await this.limpiarDatosPrueba(mesaId, ordenId);
+      
+    } catch (error) {
+      this.errores.push(`❌ Flujo completo falló: ${error.message}`);
+      console.error('❌ Error en flujo completo:', error.message);
+    }
+  }
+
+  // ==========================================
+  // FUNCIONES DE LIMPIEZA
+  // ==========================================
+  async limpiarMesaPrueba(mesaId) {
+    try {
+      const response = await fetch(`${this.API_BASE_URL}/mesas/${mesaId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        console.log('   🧹 Mesa de prueba eliminada');
+      }
+    } catch (error) {
+      console.log('   ⚠️ No se pudo eliminar mesa de prueba:', error.message);
+    }
+  }
+
+  async limpiarDatosPrueba(mesaId, ordenId) {
+    console.log('   🧹 Limpiando datos de prueba...');
+    
+    // Limpiar orden (marcar como cancelada)
+    if (ordenId) {
+      try {
+        await fetch(`${this.API_BASE_URL}/ordenes/${ordenId}/estado`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ estado: 'cancelada' })
+        });
+      } catch (error) {
+        console.log('   ⚠️ No se pudo cancelar orden de prueba');
+      }
+    }
+    
+    // Limpiar mesa
+    if (mesaId) {
+      await this.limpiarMesaPrueba(mesaId);
+    }
+  }
+
+  // ==========================================
+  // MOSTRAR RESULTADOS
+  // ==========================================
+  mostrarResultados() {
+    console.log('\n📋 === RESULTADOS DE LA VALIDACIÓN ===');
+    
+    console.log(`\n✅ ÉXITOS (${this.exitos.length}):`);
+    this.exitos.forEach(exito => console.log(`  ${exito}`));
+    
+    if (this.warnings.length > 0) {
+      console.log(`\n⚠️ ADVERTENCIAS (${this.warnings.length}):`);
+      this.warnings.forEach(warning => console.log(`  ${warning}`));
+    }
+    
+    if (this.errores.length > 0) {
+      console.log(`\n❌ ERRORES (${this.errores.length}):`);
+      this.errores.forEach(error => console.log(`  ${error}`));
+    }
+    
+    console.log('\n🎯 === RESUMEN FINAL ===');
+    if (this.errores.length === 0) {
+      console.log('✅ SISTEMA FUNCIONANDO CORRECTAMENTE');
+      console.log('   Todos los componentes principales están operativos');
+      
+      if (this.warnings.length > 0) {
+        console.log('⚠️ Hay algunas advertencias menores que revisar');
+      }
+    } else {
+      console.log('❌ SISTEMA CON PROBLEMAS');
+      console.log('   Se encontraron errores críticos que deben resolverse');
+      
+      // Mostrar recomendaciones
+      console.log('\n💡 RECOMENDACIONES:');
+      
+      if (this.errores.some(e => e.includes('Backend no responde'))) {
+        console.log('  1. Verificar que el servidor backend esté ejecutándose');
+        console.log('  2. Confirmar la URL del servidor: http://200.54.216.197:3000');
+        console.log('  3. Verificar conexión de red');
+      }
+      
+      if (this.errores.some(e => e.includes('HTTP 404'))) {
+        console.log('  4. Algunos endpoints no están implementados');
+        console.log('  5. Verificar las rutas en el servidor');
+      }
+      
+      if (this.errores.some(e => e.includes('HTTP 500'))) {
+        console.log('  6. Error interno del servidor');
+        console.log('  7. Revisar logs del backend');
+        console.log('  8. Verificar conexión a base de datos');
+      }
+    }
+    
+    console.log('\n📊 ESTADÍSTICAS:');
+    console.log(`  ✅ Éxitos: ${this.exitos.length}`);
+    console.log(`  ⚠️ Advertencias: ${this.warnings.length}`);
+    console.log(`  ❌ Errores: ${this.errores.length}`);
+    console.log(`  📈 Porcentaje de éxito: ${Math.round((this.exitos.length / (this.exitos.length + this.warnings.length + this.errores.length)) * 100)}%`);
+  }
+
+  // ==========================================
+  // VALIDACIÓN ESPECÍFICA DE APISERVICE
+  // ==========================================
+  static validarApiService() {
+    console.log('\n🔍 VALIDANDO APISERVICE...');
+    
+    // Verificar que ApiService tenga todos los métodos necesarios
+    const metodosRequeridos = [
+      'getMesas',
+      'createMesa', 
+      'updateMesa',
+      'updateEstadoMesa', // ✅ MÉTODO CRÍTICO FALTANTE
+      'deleteMesa',
+      'getEstadisticasMesas',
+      'createPedido',
+      'getOrdenesActivas',
+      'updateEstadoOrden',
+      'updateEstadoItem'
+    ];
+    
+    const apiServiceContent = `
+      // Verificar si ApiService tiene los métodos requeridos
+      if (typeof ApiService !== 'undefined') {
+        const metodosPresentes = [];
+        const metodosFaltantes = [];
+        
+        ${metodosRequeridos.map(metodo => `
+          if (typeof ApiService.${metodo} === 'function') {
+            metodosPresentes.push('${metodo}');
+          } else {
+            metodosFaltantes.push('${metodo}');
+          }
+        `).join('')}
+        
+        console.log('✅ Métodos presentes:', metodosPresentes);
+        if (metodosFaltantes.length > 0) {
+          console.log('❌ Métodos faltantes:', metodosFaltantes);
+          return false;
+        }
+        return true;
+      } else {
+        console.log('❌ ApiService no está definido');
+        return false;
+      }
+    `;
+    
+    console.log('📋 Métodos requeridos en ApiService:');
+    metodosRequeridos.forEach(metodo => {
+      console.log(`  - ${metodo}`);
+    });
+    
+    return apiServiceContent;
+  }
+}
+
+// ==========================================
+// EJECUCIÓN AUTOMÁTICA Y EXPORT
+// ==========================================
+
+// Función principal para ejecutar validación
+async function ejecutarValidacion() {
+  const validator = new SistemaValidator();
+  const resultado = await validator.validarSistemaCompleto();
+  
+  return resultado;
+}
+
+// Función de validación rápida
+async function validacionRapida() {
+  console.log('⚡ VALIDACIÓN RÁPIDA DEL SISTEMA');
+  
+  try {
+    // Probar conexión básica
+    const response = await fetch('http://192.1.1.16:3000/api/health');
+    if (response.ok) {
+      console.log('✅ Backend conectado');
+      
+      // Probar endpoint crítico
+      const ordenesResponse = await fetch('http://192.1.1.16:3000/api/ordenes/activas');
+      if (ordenesResponse.ok) {
+        console.log('✅ Endpoint de órdenes activas funcionando');
+        return true;
+      } else {
+        console.log('❌ Endpoint de órdenes activas falló');
+        return false;
+      }
+    } else {
+      console.log('❌ Backend no responde');
+      return false;
+    }
+  } catch (error) {
+    console.log('❌ Error de conexión:', error.message);
+    return false;
+  }
+}
+
+// Export para uso en React Native o browser
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { SistemaValidator, ejecutarValidacion, validacionRapida };
+} else if (typeof window !== 'undefined') {
+  window.SistemaValidator = SistemaValidator;
+  window.ejecutarValidacion = ejecutarValidacion;
+  window.validacionRapida = validacionRapida;
+}
+
+console.log('✅ Sistema de validación cargado. Ejecutar con: ejecutarValidacion()');
+
+// Auto-ejecutar si está en browser y no es producción
+if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  console.log('🚀 Auto-ejecutando validación en entorno de desarrollo...');
+  setTimeout(ejecutarValidacion, 2000);
+}
+
+ async function mostrarValidacion() {
+            document.getElementById('resultados').innerHTML = '<p>🔄 Ejecutando validación...</p>';
+            
+            try {
+                const resultado = await ejecutarValidacion();
+                
+                let html = '<h3>📋 Resultados:</h3>';
+                html += `<p><strong>Estado:</strong> ${resultado.success ? '✅ ÉXITO' : '❌ ERRORES'}</p>`;
+                
+                if (resultado.exitos?.length > 0) {
+                    html += '<h4>✅ Éxitos:</h4><ul>';
+                    resultado.exitos.forEach(exito => {
+                        html += `<li>${exito}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                
+                if (resultado.errores?.length > 0) {
+                    html += '<h4>❌ Errores:</h4><ul>';
+                    resultado.errores.forEach(error => {
+                        html += `<li style="color: red;">${error}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                
+                document.getElementById('resultados').innerHTML = html;
+                
+            } catch (error) {
+                document.getElementById('resultados').innerHTML = 
+                    `<p style="color: red;">❌ Error ejecutando validación: ${error.message}</p>`;
+            }
+        }
+        
+        // Sobrescribir función para mostrar en página
+        window.ejecutarValidacion = mostrarValidacion;
+        
+        // Validación rápida
+        window.validacionRapida = async function() {
+            document.getElementById('resultados').innerHTML = '<p>⚡ Ejecutando validación rápida...</p>';
+            
+            try {
+                const resultado = await validacionRapida();
+                const estado = resultado ? '✅ Sistema funcionando' : '❌ Sistema con problemas';
+                document.getElementById('resultados').innerHTML = `<p><strong>${estado}</strong></p>`;
+            } catch (error) {
+                document.getElementById('resultados').innerHTML = 
+                    `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            }
+        };
+    </script>
+</body>
+</html>

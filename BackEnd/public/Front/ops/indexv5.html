@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Cocina - Restaurante</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍽️</text></svg>">
+    <style>
+        /* ==========================================
+           MEJORAS ESPECÍFICAS PARA LA INTERFAZ
+           ========================================== */
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #64748b;
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --info: #0284c7;
+            
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-accent: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --border-radius: 12px;
+            --border-radius-lg: 16px;
+        }
+
+        /* Mejoras para las tarjetas de órdenes */
+        .order-card {
+            background: white;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            border-left: 6px solid transparent;
+            margin-bottom: 1.5rem;
+        }
+
+        .order-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        /* Estados de órdenes */
+        .order-card.pendiente { border-left-color: var(--danger); }
+        .order-card.preparando { border-left-color: var(--warning); }
+        .order-card.listo { border-left-color: var(--success); }
+        .order-card.entregado { border-left-color: var(--info); }
+
+        .order-header {
+            background: var(--bg-secondary);
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .order-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .order-table {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .order-time {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .time-urgent {
+            background: var(--danger);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.7; }
+        }
+
+        .order-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .order-status.pendiente {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .order-status.preparando {
+            background: rgba(217, 119, 6, 0.1);
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
+
+        .order-status.listo {
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .order-status.entregado {
+            background: rgba(2, 132, 199, 0.1);
+            color: var(--info);
+            border: 1px solid var(--info);
+        }
+
+        .order-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .order-total {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--success);
+        }
+
+        .order-items-count {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .order-body {
+            padding: 1.5rem;
+        }
+
+        .order-items {
+            margin-bottom: 1.5rem;
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius);
+            border: 2px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .order-item:hover {
+            background: var(--bg-accent);
+            border-color: var(--primary);
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            font-size: 1rem;
+        }
+
+        .item-details {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .item-notes {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-top: 0.25rem;
+            background: #fef3c7;
+            padding: 0.5rem;
+            border-radius: 6px;
+            border-left: 3px solid #f59e0b;
+        }
+
+        .item-quantity {
+            background: var(--primary);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .item-price {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .item-status-current {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .item-status-current.pendiente {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--danger);
+        }
+
+        .item-status-current.preparando {
+            background: rgba(217, 119, 6, 0.1);
+            color: var(--warning);
+        }
+
+        .item-status-current.listo {
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--success);
+        }
+
+        .item-status-current.entregado {
+            background: rgba(2, 132, 199, 0.1);
+            color: var(--info);
+        }
+
+        /* Controles de estado por item */
+        .item-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-width: 180px;
+        }
+
+        .item-status-select {
+            padding: 0.75rem;
+            border: 2px solid var(--border);
+            border-radius: var(--border-radius);
+            background: white;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 48px;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.7rem center;
+            background-size: 1rem;
+            padding-right: 2.5rem;
+        }
+
+        .item-status-select:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow);
+        }
+
+        .item-status-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* Estilos para opciones del select */
+        .item-status-select option {
+            padding: 0.5rem;
+            font-weight: 600;
+            background: white;
+        }
+
+        .item-status-select option:checked {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Controles de orden general */
+        .order-actions {
+            border-top: 1px solid var(--border);
+            padding: 1.5rem;
+            background: var(--bg-secondary);
+        }
+
+        .order-status-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .order-status-label {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .order-status-select {
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: var(--border-radius);
+            background: white;
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 56px;
+            min-width: 180px;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1.2rem;
+            padding-right: 3rem;
+        }
+
+        .order-status-select:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow);
+            transform: translateY(-1px);
+        }
+
+        .order-status-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* Estilos para opciones del select de orden */
+        .order-status-select option {
+            padding: 0.75rem;
+            font-weight: 600;
+            background: white;
+        }
+
+        .order-status-select option:checked {
+            background: var(--primary);
+            color: white;
+        }
+
+        .order-quick-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .deliver-complete-btn {
+            background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+            color: white;
+            font-weight: 700;
+            box-shadow: var(--shadow);
+            animation: readyGlow 2s infinite alternate;
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 1rem 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .deliver-complete-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(5, 150, 105, 0.4);
+        }
+
+        @keyframes readyGlow {
+            0% { box-shadow: var(--shadow); }
+            100% { box-shadow: 0 8px 32px rgba(5, 150, 105, 0.4); }
+        }
+
+        /* Notas y observaciones */
+        .order-notes {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #f59e0b;
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+
+        .order-notes.urgent {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border-color: var(--danger);
+            animation: urgentPulse 2s infinite;
+        }
+
+        @keyframes urgentPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.01); }
+        }
+
+        .notes-icon {
+            font-size: 1.1rem;
+            margin-right: 0.5rem;
+        }
+
+        /* Mejoras para botones generales */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            min-height: 48px;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .btn-outline:hover {
+            background: var(--bg-secondary);
+        }
+
+        /* Grid mejorado para órdenes */
+        .orders-grid.kitchen-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+            gap: 1.5rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .orders-grid.kitchen-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .order-status-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .order-status-select {
+                min-width: auto;
+                width: 100%;
+            }
+
+            .item-controls {
+                min-width: auto;
+                width: 100%;
+            }
+
+            .item-status-select {
+                width: 100%;
+            }
+
+            .order-quick-actions {
+                flex-direction: column;
+            }
+
+            .order-item {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .item-info {
+                order: 1;
+            }
+
+            .item-controls {
+                order: 2;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="logo">🍽️</div>
+                <h1>Sistema de Cocina</h1>
+                <p>Gestión de Órdenes en Tiempo Real</p>
+            </div>
+            
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="email">Usuario / Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        class="form-input" 
+                        required 
+                        autocomplete="email"
+                        placeholder="usuario@restaurante.com"
+                    >
+                    <div class="error-message" id="email-error"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="password">Contraseña</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        class="form-input" 
+                        required 
+                        autocomplete="current-password"
+                        placeholder="••••••••"
+                    >
+                    <div class="error-message" id="password-error"></div>
+                </div>
+                
+                <button type="submit" class="login-btn" id="login-btn">
+                    <span id="login-btn-text">Iniciar Sesión</span>
+                </button>
+                
+                <div class="error-message" id="login-error"></div>
+            </form>
+            
+            <!-- Estado del servidor -->
+            <div id="server-status" class="server-status disconnected">
+                <span class="status-dot"></span>
+                <span id="server-status-text">Conectando con el servidor...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="app-container">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span>🍽️</span>
+                    <span id="app-title">Sistema Cocina</span>
+                </div>
+                
+                <nav class="nav-tabs">
+                    <button class="nav-tab active" onclick="showSection('dashboard')" id="dashboard-tab">
+                        📊 Dashboard
+                    </button>
+                    <button class="nav-tab" onclick="showSection('kitchen')" id="kitchen-tab">
+                        👨‍🍳 Cocina
+                    </button>
+                    <button class="nav-tab" onclick="showSection('admin')" id="admin-tab">
+                        👥 Administración
+                    </button>
+                    <button class="nav-tab" onclick="showSection('tables')" id="tables-tab">
+                        🪑 Mesas
+                    </button>
+                </nav>
+
+                <div class="user-info">
+                    <div class="user-details">
+                        <div class="user-name" id="user-name">Usuario</div>
+                        <div class="user-role" id="user-role">Rol</div>
+                    </div>
+                    <div class="status-indicator">
+                        <div class="status-dot" id="connection-dot"></div>
+                        <span id="connection-status">Conectado</span>
+                    </div>
+                    <button class="logout-btn" onclick="logout()">
+                        🚪 <span>Salir</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-container">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content-section active">
+                <div class="dashboard-stats">
+                    <div class="stat-card danger">
+                        <div class="icon">⚠️</div>
+                        <div class="stat-number" id="pending-orders">0</div>
+                        <div class="stat-label">Pedidos Pendientes</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="icon">🔥</div>
+                        <div class="stat-number" id="preparing-orders">0</div>
+                        <div class="stat-label">En Preparación</div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="icon">✅</div>
+                        <div class="stat-number" id="ready-orders">0</div>
+                        <div class="stat-label">Listos para Entregar</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="icon">💰</div>
+                        <div class="stat-number" id="total-sales">$0</div>
+                        <div class="stat-label">Ventas del Día</div>
+                    </div>
+                </div>
+
+                <h2>📊 Resumen de Órdenes Activas</h2>
+                <div id="dashboard-orders" class="orders-grid">
+                    <!-- Las órdenes se cargarán aquí dinámicamente -->
+                </div>
+            </section>
+
+            <!-- Kitchen Section - MEJORADA -->
+            <section id="kitchen" class="content-section">
+                <div class="section-header">
+                    <h2>👨‍🍳 Panel de Cocina</h2>
+                    <div class="kitchen-controls">
+                        <span class="control-label">Auto-refresh:</span>
+                        <button class="btn btn-success" id="auto-refresh-btn" onclick="toggleAutoRefresh()">
+                            ✅ Activo
+                        </button>
+                        <button class="btn btn-primary" onclick="refreshKitchenOrders()">
+                            🔄 Actualizar
+                        </button>
+                        <div id="last-update" class="last-update">
+                            Última actualización: --:--:--
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="kitchen-orders" class="orders-grid kitchen-grid">
+                    <!-- Las órdenes de cocina se cargarán aquí dinámicamente con nueva interfaz -->
+                </div>
+            </section>
+
+            <!-- Admin Section -->
+            <section id="admin" class="content-section">
+                <div class="section-header">
+                    <h2>👥 Panel de Administración</h2>
+                    <div class="admin-controls">
+                        <button class="btn btn-primary" onclick="refreshOrders()">
+                            🔄 Actualizar Órdenes
+                        </button>
+                        <button class="btn btn-secondary" onclick="exportOrders()">
+                            📊 Exportar Datos
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="admin-orders" class="orders-grid admin-grid">
+                    <!-- Las órdenes de administración se cargarán aquí dinámicamente -->
+                </div>
+            </section>
+
+            <!-- Tables Section -->
+            <section id="tables" class="content-section">
+                <div class="section-header">
+                    <h2>🪑 Gestión de Mesas</h2>
+                    <div class="tables-controls">
+                        <button class="btn btn-primary" onclick="refreshTables()">
+                            🔄 Actualizar Mesas
+                        </button>
+                        <button class="btn btn-success" onclick="addTable()">
+                            ➕ Nueva Mesa
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="tables-grid" class="tables-grid">
+                    <!-- Las mesas se cargarán aquí dinámicamente -->
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div id="order-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Detalles de la Orden</h3>
+                <button class="modal-close" onclick="closeOrderModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- El contenido se cargará dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeOrderModal()">Cerrar</button>
+                <button class="btn btn-primary" onclick="updateOrderFromModal()">Actualizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification" class="notification" style="display: none;"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Cargando...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/cocina-api.js"></script>
+    <script src="js/cocina-ui.js"></script>
+    <script src="js/cocina-main.js"></script>
+
+    <script>
+        // ==========================================
+        // FUNCIONES MEJORADAS PARA LA SECCIÓN COCINA
+        // ==========================================
+        
+        /**
+         * Renderiza una orden con la nueva interfaz mejorada
+         */
+        function renderKitchenOrderCard(order) {
+            const orderTime = new Date(order.fecha_creacion || order.timestamp);
+            const minutesElapsed = Math.floor((Date.now() - orderTime.getTime()) / 60000);
+            const isUrgent = minutesElapsed > 30;
+            
+            // Calcular estadísticas de items
+            const totalItems = order.items?.length || 0;
+            const itemsPendientes = order.items?.filter(item => item.estado === 'pendiente').length || 0;
+            const itemsPreparando = order.items?.filter(item => item.estado === 'preparando').length || 0;
+            const itemsListos = order.items?.filter(item => item.estado === 'listo').length || 0;
+            
+            // Determinar estado general de la orden basado en items
+            let orderStatus = order.estado || 'pendiente';
+            if (itemsListos === totalItems && totalItems > 0) {
+                orderStatus = 'listo';
+            } else if (itemsPreparando > 0) {
+                orderStatus = 'preparando';
+            } else if (itemsPendientes === totalItems) {
+                orderStatus = 'pendiente';
+            }
+
+            const statusInfo = getOrderStatusInfo(orderStatus);
+            
+            return `
+                <div class="order-card ${orderStatus}" data-order-id="${order.id}">
+                    <div class="order-header">
+                        <div class="order-meta">
+                            <div class="order-table">${order.mesa || 'Mesa ' + order.id}</div>
+                            <div class="order-time">
+                                🕒 Hace ${minutesElapsed} min
+                                ${isUrgent ? '<span class="time-urgent">⚠️ URGENTE</span>' : ''}
+                            </div>
+                        </div>
+                        <div class="order-summary">
+                            <div class="order-status ${orderStatus}">
+                                ${statusInfo.label}
+                            </div>
+                            <div class="order-total">$${(order.total || 0).toLocaleString('es-CL')}</div>
+                        </div>
+                        <div class="order-items-count">
+                            ${totalItems} item${totalItems !== 1 ? 's' : ''} 
+                            ${itemsPendientes > 0 ? `• ${itemsPendientes} pendiente${itemsPendientes !== 1 ? 's' : ''}` : ''}
+                            ${itemsPreparando > 0 ? `• ${itemsPreparando} preparando` : ''}
+                            ${itemsListos > 0 ? `• ${itemsListos} listo${itemsListos !== 1 ? 's' : ''}` : ''}
+                        </div>
+                    </div>
+
+                    <div class="order-body">
+                        <div class="order-items">
+                            ${(order.items || []).map(item => renderKitchenOrderItem(item, order.id)).join('')}
+                        </div>
+
+                        ${order.notas ? `
+                            <div class="order-notes ${isUrgent ? 'urgent' : ''}">
+                                <span class="notes-icon">${isUrgent ? '🚨' : '📝'}</span>
+                                <strong>Notas:</strong> ${order.notas}
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="order-actions">
+                        <div class="order-status-controls">
+                            ${renderOrderStatusSelect(order, orderStatus)}
+                        </div>
+                        <div class="order-quick-actions">
+                            <button class="btn btn-outline" onclick="showOrderDetails(${order.id})">
+                                👁️ Ver Detalles
+                            </button>
+                            ${orderStatus === 'listo' ? `
+                                <button class="deliver-complete-btn" onclick="deliverCompleteOrder(${order.id})">
+                                    📦 Entregar Completa
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Renderiza un item individual con control de estado dropdown
+         */
+        function renderKitchenOrderItem(item, orderId) {
+            const itemStatus = item.estado || 'pendiente';
+            const statusInfo = getItemStatusInfo(itemStatus);
+            
+            return `
+                <div class="order-item" data-item-id="${item.id}">
+                    <div class="item-info">
+                        <div class="item-name">${item.nombre || 'Item sin nombre'}</div>
+                        <div class="item-details">
+                            <span class="item-quantity">${item.cantidad || 1}x</span>
+                            <span class="item-price">${((item.precio || 0) * (item.cantidad || 1)).toLocaleString('es-CL')}</span>
+                            <span class="item-status-current ${itemStatus}">${statusInfo.label}</span>
+                        </div>
+                        ${item.observaciones ? `
+                            <div class="item-notes">📝 ${item.observaciones}</div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="item-controls">
+                        ${renderItemStatusSelect(item, orderId)}
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Renderiza el selector dropdown para items individuales
+         */
+        function renderItemStatusSelect(item, orderId) {
+            const currentStatus = item.estado || 'pendiente';
+            
+            return `
+                <select 
+                    class="item-status-select" 
+                    onchange="changeItemStatus(${orderId}, ${item.id}, this.value)"
+                    data-order-id="${orderId}"
+                    data-item-id="${item.id}"
+                >
+                    <option value="pendiente" ${currentStatus === 'pendiente' ? 'selected' : ''}>⚠️ Pendiente</option>
+                    <option value="preparando" ${currentStatus === 'preparando' ? 'selected' : ''}>🔥 Preparando</option>
+                    <option value="listo" ${currentStatus === 'listo' ? 'selected' : ''}>✅ Listo</option>
+                </select>
+            `;
+        }
+
+        /**
+         * Renderiza el selector dropdown para la orden completa
+         */
+        function renderOrderStatusSelect(order, currentStatus) {
+            return `
+                <span class="order-status-label">Estado de la orden:</span>
+                <select 
+                    class="order-status-select" 
+                    onchange="changeOrderStatus(${order.id}, this.value)"
+                    data-order-id="${order.id}"
+                >
+                    <option value="pendiente" ${currentStatus === 'pendiente' ? 'selected' : ''}>⚠️ Pendiente</option>
+                    <option value="preparando" ${currentStatus === 'preparando' ? 'selected' : ''}>🔥 Preparando</option>
+                    <option value="listo" ${currentStatus === 'listo' ? 'selected' : ''}>✅ Listo</option>
+                    <option value="entregado" ${currentStatus === 'entregado' ? 'selected' : ''}>📦 Entregado</option>
+                </select>
+            `;
+        }
+
+        /**
+         * Cambia el estado de un item individual
+         */
+        function changeItemStatus(orderId, itemId, newStatus) {
+            console.log(`Cambiando item ${itemId} de orden ${orderId} a estado: ${newStatus}`);
+            
+            // Aquí se conectaría con tu API existente
+            // Por ahora simularemos el cambio
+            
+            // Encontrar y actualizar el item
+            const orderCard = document.querySelector(`[data-order-id="${orderId}"]`);
+            if (orderCard) {
+                // Actualizar indicador de estado visual
+                const itemElement = orderCard.querySelector(`[data-item-id="${itemId}"]`);
+                if (itemElement) {
+                    // Actualizar indicador de estado
+                    const statusIndicator = itemElement.querySelector('.item-status-current');
+                    if (statusIndicator) {
+                        const stateInfo = getItemStatusInfo(newStatus);
+                        statusIndicator.className = `item-status-current ${newStatus}`;
+                        statusIndicator.textContent = stateInfo.label;
+                    }
+                }
+                
+                // Recalcular estado de la orden después de un breve delay
+                setTimeout(() => {
+                    recalculateOrderStatus(orderId);
+                }, 100);
+            }
+            
+            // Mostrar notificación
+            showNotification(`Item actualizado a: ${getItemStatusInfo(newStatus).label}`, 'success');
+        }
+
+        /**
+         * Cambia el estado de una orden completa
+         */
+        function changeOrderStatus(orderId, newStatus) {
+            console.log(`Cambiando orden ${orderId} a estado: ${newStatus}`);
+            
+            const orderCard = document.querySelector(`[data-order-id="${orderId}"]`);
+            if (orderCard) {
+                // Actualizar clase de la tarjeta
+                orderCard.className = orderCard.className.replace(/\b(pendiente|preparando|listo|entregado)\b/g, '');
+                orderCard.classList.add(newStatus);
+                
+                // Actualizar estado visual en el header
+                const statusBadge = orderCard.querySelector('.order-status');
+                if (statusBadge) {
+                    const stateInfo = getOrderStatusInfo(newStatus);
+                    statusBadge.className = `order-status ${newStatus}`;
+                    statusBadge.textContent = stateInfo.label;
+                }
+                
+                // Actualizar visibilidad del botón "Entregar Completa"
+                const deliverBtn = orderCard.querySelector('.deliver-complete-btn');
+                const quickActionsContainer = orderCard.querySelector('.order-quick-actions');
+                
+                if (newStatus === 'listo' && !deliverBtn) {
+                    // Agregar botón si la orden está lista y no existe
+                    const newDeliverBtn = document.createElement('button');
+                    newDeliverBtn.className = 'deliver-complete-btn';
+                    newDeliverBtn.onclick = () => deliverCompleteOrder(orderId);
+                    newDeliverBtn.innerHTML = '📦 Entregar Completa';
+                    quickActionsContainer.appendChild(newDeliverBtn);
+                } else if (newStatus !== 'listo' && deliverBtn) {
+                    // Remover botón si la orden no está lista
+                    deliverBtn.remove();
+                }
+                
+                // Si se marca como entregado, marcar todos los items como entregados
+                if (newStatus === 'entregado') {
+                    const itemSelects = orderCard.querySelectorAll('.item-status-select');
+                    itemSelects.forEach(select => {
+                        select.value = 'entregado';
+                        select.disabled = true;
+                        select.style.opacity = '0.6';
+                    });
+                    
+                    // Actualizar todos los indicadores de items
+                    const itemStatusIndicators = orderCard.querySelectorAll('.item-status-current');
+                    itemStatusIndicators.forEach(indicator => {
+                        indicator.className = 'item-status-current entregado';
+                        indicator.textContent = '📦 Entregado';
+                    });
+                    
+                    // Remover botón entregar si existe
+                    if (deliverBtn) {
+                        deliverBtn.remove();
+                    }
+                }
+            }
+            
+            showNotification(`Orden actualizada a: ${getOrderStatusInfo(newStatus).label}`, 'success');
+        }
+
+        /**
+         * Entrega una orden completa
+         */
+        function deliverCompleteOrder(orderId) {
+            if (!confirm('¿Confirmar entrega completa de esta orden?\n\nTodos los items se marcarán como entregados.')) {
+                return;
+            }
+            
+            changeOrderStatus(orderId, 'entregado');
+            showNotification('✅ Orden entregada completamente', 'success');
+            
+            // Remover de la vista de cocina después de unos segundos
+            setTimeout(() => {
+                const orderCard = document.querySelector(`[data-order-id="${orderId}"]`);
+                if (orderCard) {
+                    orderCard.style.transition = 'all 0.5s ease';
+                    orderCard.style.opacity = '0';
+                    orderCard.style.transform = 'translateY(-20px)';
+                    setTimeout(() => {
+                        orderCard.remove();
+                    }, 500);
+                }
+            }, 2000);
+        }
+
+        /**
+         * Recalcula el estado de una orden basado en sus items
+         */
+        function recalculateOrderStatus(orderId) {
+            const orderCard = document.querySelector(`[data-order-id="${orderId}"]`);
+            if (!orderCard) return;
+            
+            // Obtener todos los selects de items y sus valores actuales
+            const itemSelects = orderCard.querySelectorAll('.item-status-select');
+            const itemStates = Array.from(itemSelects).map(select => select.value);
+            
+            // Actualizar contador de items por estado en el header
+            const itemsCountElement = orderCard.querySelector('.order-items-count');
+            if (itemsCountElement) {
+                const totalItems = itemStates.length;
+                const itemsPendientes = itemStates.filter(state => state === 'pendiente').length;
+                const itemsPreparando = itemStates.filter(state => state === 'preparando').length;
+                const itemsListos = itemStates.filter(state => state === 'listo').length;
+                
+                let countText = `${totalItems} item${totalItems !== 1 ? 's' : ''} `;
+                if (itemsPendientes > 0) countText += `• ${itemsPendientes} pendiente${itemsPendientes !== 1 ? 's' : ''} `;
+                if (itemsPreparando > 0) countText += `• ${itemsPreparando} preparando `;
+                if (itemsListos > 0) countText += `• ${itemsListos} listo${itemsListos !== 1 ? 's' : ''}`;
+                
+                itemsCountElement.textContent = countText;
+            }
+            
+            let newOrderStatus = 'pendiente';
+            
+            // Lógica para determinar el estado de la orden
+            if (itemStates.length === 0) {
+                newOrderStatus = 'pendiente';
+            } else if (itemStates.every(state => state === 'listo')) {
+                newOrderStatus = 'listo';
+            } else if (itemStates.some(state => state === 'preparando')) {
+                newOrderStatus = 'preparando';
+            } else if (itemStates.every(state => state === 'pendiente')) {
+                newOrderStatus = 'pendiente';
+            } else {
+                // Estados mixtos - usar el estado más avanzado como referencia
+                if (itemStates.some(state => state === 'listo')) {
+                    newOrderStatus = 'preparando'; // Algunos listos, algunos no
+                } else {
+                    newOrderStatus = 'preparando'; // Al menos algunos están preparando
+                }
+            }
+            
+            // Actualizar el selector de la orden si es diferente
+            const orderSelect = orderCard.querySelector('.order-status-select');
+            if (orderSelect && orderSelect.value !== newOrderStatus) {
+                orderSelect.value = newOrderStatus;
+                
+                // Actualizar visualmente la orden
+                orderCard.className = orderCard.className.replace(/\b(pendiente|preparando|listo|entregado)\b/g, '');
+                orderCard.classList.add(newOrderStatus);
+                
+                // Actualizar badge de estado
+                const statusBadge = orderCard.querySelector('.order-status');
+                if (statusBadge) {
+                    const stateInfo = getOrderStatusInfo(newOrderStatus);
+                    statusBadge.className = `order-status ${newOrderStatus}`;
+                    statusBadge.textContent = stateInfo.label;
+                }
+                
+                // Actualizar visibilidad del botón "Entregar Completa"
+                const deliverBtn = orderCard.querySelector('.deliver-complete-btn');
+                const quickActionsContainer = orderCard.querySelector('.order-quick-actions');
+                
+                if (newOrderStatus === 'listo' && !deliverBtn) {
+                    // Agregar botón si la orden está lista y no existe
+                    const newDeliverBtn = document.createElement('button');
+                    newDeliverBtn.className = 'deliver-complete-btn';
+                    newDeliverBtn.onclick = () => deliverCompleteOrder(orderId);
+                    newDeliverBtn.innerHTML = '📦 Entregar Completa';
+                    quickActionsContainer.appendChild(newDeliverBtn);
+                } else if (newOrderStatus !== 'listo' && deliverBtn) {
+                    // Remover botón si la orden no está lista
+                    deliverBtn.remove();
+                }
+                
+                console.log(`Estado de orden ${orderId} actualizado automáticamente a: ${newOrderStatus}`);
+            }
+        }
+
+        /**
+         * Obtiene información de estado de orden
+         */
+        function getOrderStatusInfo(status) {
+            const statusMap = {
+                'pendiente': { label: '⚠️ Pendiente', priority: 1 },
+                'preparando': { label: '🔥 Preparando', priority: 2 },
+                'listo': { label: '✅ Listo', priority: 3 },
+                'entregado': { label: '📦 Entregado', priority: 4 }
+            };
+            return statusMap[status] || statusMap['pendiente'];
+        }
+
+        /**
+         * Obtiene información de estado de item
+         */
+        function getItemStatusInfo(status) {
+            const statusMap = {
+                'pendiente': { label: '⚠️ Pendiente', shortLabel: '⚠️' },
+                'preparando': { label: '🔥 Preparando', shortLabel: '🔥' },
+                'listo': { label: '✅ Listo', shortLabel: '✅' },
+                'entregado': { label: '📦 Entregado', shortLabel: '📦' }
+            };
+            return statusMap[status] || statusMap['pendiente'];
+        }
+
+        /**
+         * Muestra una notificación
+         */
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            if (notification) {
+                notification.textContent = message;
+                notification.className = `notification ${type} show`;
+                notification.style.display = 'block';
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => {
+                        notification.style.display = 'none';
+                    }, 300);
+                }, 3000);
+            }
+        }
+
+        // Función para integrar con el sistema existente
+        function enhanceKitchenSection() {
+            console.log('🍽️ Mejoras de interfaz de cocina aplicadas');
+            
+            // Sobrescribir la función de renderizado existente si existe
+            if (typeof window.renderKitchenOrder === 'function') {
+                window.originalRenderKitchenOrder = window.renderKitchenOrder;
+                window.renderKitchenOrder = function(order, container) {
+                    const orderHtml = renderKitchenOrderCard(order);
+                    const orderElement = document.createElement('div');
+                    orderElement.innerHTML = orderHtml;
+                    container.appendChild(orderElement.firstElementChild);
+                };
+            }
+        }
+
+        // Inicializar mejoras cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', function() {
+            enhanceKitchenSection();
+        });
+    </script>
+</body>
+</html>
