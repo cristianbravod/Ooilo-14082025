@@ -102,12 +102,8 @@ class OrderController {
 
         const esEspecial = item.esEspecial || item.es_especial;
         const query = esEspecial
-          ? `INSERT INTO orden_items (orden_id, plato_especial_id, cantidad, pre
-cio_unitario, instrucciones_especiales, estado_item, fecha_creacion) VALUES ($1,
- $2, $3, $4, $5, $6, NOW())`
-          : `INSERT INTO orden_items (orden_id, menu_item_id, cantidad, precio_u
-nitario, instrucciones_especiales, estado_item, fecha_creacion) VALUES ($1, $2,
-$3, $4, $5, $6, NOW())`;
+          ? `INSERT INTO orden_items (orden_id, plato_especial_id, cantidad, precio_unitario, instrucciones_especiales, estado_item, fecha_creacion) VALUES ($1, $2, $3, $4, $5, $6, NOW())`
+          : `INSERT INTO orden_items (orden_id, menu_item_id, cantidad, precio_unitario, instrucciones_especiales, estado_item, fecha_creacion) VALUES ($1, $2, $3, $4, $5, $6, NOW())`;
 
         const params = [
           order.id,
@@ -192,10 +188,8 @@ $3, $4, $5, $6, NOW())`;
           EXTRACT(EPOCH FROM (NOW() - o.fecha_creacion))/60 as minutos_espera,
           -- Prioridad basada en tiempo
           CASE
-            WHEN EXTRACT(EPOCH FROM (NOW() - o.fecha_creacion))/60 > 30 THEN 'AL
-TA'
-            WHEN EXTRACT(EPOCH FROM (NOW() - o.fecha_creacion))/60 > 15 THEN 'ME
-DIA'
+            WHEN EXTRACT(EPOCH FROM (NOW() - o.fecha_creacion))/60 > 30 THEN 'ALTA'
+            WHEN EXTRACT(EPOCH FROM (NOW() - o.fecha_creacion))/60 > 15 THEN 'MEDIA'
             ELSE 'NORMAL'
           END as prioridad
         FROM ordenes o
@@ -206,8 +200,7 @@ DIA'
         LEFT JOIN categorias c2 ON pe.categoria_id = c2.id
         WHERE o.estado IN ('pendiente', 'confirmada', 'preparando', 'lista')
         GROUP BY o.id
-        ORDER BY o.fecha_creacion ASC  -- FIFO: Primero en entrar, primero en sa
-lir
+        ORDER BY o.fecha_creacion ASC  -- FIFO: Primero en entrar, primero en salir
       `);
 
       const ordenes = result.rows.map(orden => ({
@@ -330,8 +323,7 @@ lir
       if (!estadosValidos.includes(estado)) {
         return res.status(400).json({
           success: false,
-          message: `Estado inválido. Estados permitidos: ${estadosValidos.join('
-, ')}`
+          message: `Estado inválido. Estados permitidos: ${estadosValidos.join(', ')}`
         });
       }
 
@@ -396,8 +388,7 @@ lir
         estado = 'lista';
       }
 
-      console.log(`✅ Actualizando item ${itemId} de orden ${ordenId} a estado: $
-{estado}`);
+      console.log(`✅ Actualizando item ${itemId} de orden ${ordenId} a estado: ${estado}`);
 
       if (!estado) {
         return res.status(400).json({
@@ -440,8 +431,7 @@ lir
           WHERE id = $1
         `, [ordenId]);
 
-        console.log(`🎯 Orden ${ordenId} marcada como LISTA (todos los items comp
-letados)`);
+        console.log(`🎯 Orden ${ordenId} marcada como LISTA (todos los items completados)`);
       }
 
       console.log(`✅ Estado de item actualizado: ${itemId} -> ${estado}`);
@@ -555,8 +545,7 @@ letados)`);
 
       await client.query('COMMIT');
 
-      console.log(`✅ Items agregados exitosamente a orden ${id}, total adicional
-: $${totalAdicionado}`);
+      console.log(`✅ Items agregados exitosamente a orden ${id}, total adicional: $${totalAdicionado}`);
 
       res.json({
         success: true,
@@ -606,8 +595,7 @@ letados)`);
       }
 
       // Calcular total final
-      const totalBase = ordenesResult.rows.reduce((sum, orden) => sum + parseFlo
-at(orden.total), 0);
+      const totalBase = ordenesResult.rows.reduce((sum, orden) => sum + parseFloat(orden.total), 0);
       const propinaCalculada = propina || 0;
       const descuentoCalculado = descuento || 0;
       const totalFinal = totalBase + propinaCalculada - descuentoCalculado;
