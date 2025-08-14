@@ -9,8 +9,6 @@ class MenuController {
   async getCategories(req, res) {
     try {
       console.log('📂 Obteniendo categorías...');
-      // Se usa la columna 'activo' que es la que parece correcta según el código robusto anterior.
-      // Se elimina el bucle para tener un error claro si la consulta falla.
       const query = 'SELECT id, nombre, descripcion, activo FROM categorias WHERE activo = true ORDER BY orden, nombre';
       console.log(`🚀 Ejecutando query: ${query}`);
       const result = await pool.query(query);
@@ -27,10 +25,6 @@ class MenuController {
     try {
       console.log('🍽️ Obteniendo menú...');
       const { categoria_id, vegetariano, picante } = req.query;
-
-      // Se corrige la consulta para usar 'm.imagen' en lugar de 'm.imagen_url' para la tabla menu_items.
-      // Se mantiene 'pe.imagen_url' para platos_especiales.
-      // Se eliminó el bucle de consultas para tener un código más limpio y predecible.
       const query = `
         SELECT
           m.id, m.nombre, m.precio, m.categoria_id, m.descripcion, m.disponible,
@@ -40,9 +34,7 @@ class MenuController {
         FROM menu_items m
         JOIN categorias c ON m.categoria_id = c.id
         WHERE m.disponible = true AND m.vigente = true AND c.activo = true
-
         UNION ALL
-
         SELECT
           pe.id, pe.nombre, pe.precio, pe.categoria_id, pe.descripcion, pe.disponible,
           pe.vegetariano, pe.picante, pe.imagen_url, pe.ingredientes, pe.tiempo_preparacion,
@@ -53,14 +45,10 @@ class MenuController {
         WHERE pe.disponible = true AND pe.vigente = true AND c.activo = true
         ORDER BY categoria_nombre, nombre
       `;
-
       console.log('🚀 Ejecutando query de menú unificado...');
       const result = await pool.query(query);
       console.log(`✅ Query de menú exitosa: ${result.rows.length} productos encontrados`);
-
-      // Aplicar filtros si se proporcionan
       let filteredResults = result.rows;
-
       if (categoria_id) {
         filteredResults = filteredResults.filter(item => item.categoria_id == categoria_id);
       }
@@ -70,7 +58,6 @@ class MenuController {
       if (picante === 'true') {
         filteredResults = filteredResults.filter(item => item.picante === true);
       }
-
       console.log(`🍽️ Total productos (después de filtros): ${filteredResults.length}`);
       res.json(filteredResults);
     } catch (error) {
@@ -83,9 +70,7 @@ class MenuController {
   async getMenuForWeb(req, res) {
     try {
       console.log('🌐 Generando menú para web...');
-
       const categoriesResult = await pool.query('SELECT * FROM categorias WHERE activo = true ORDER BY orden, nombre');
-
       const itemsResult = await pool.query(`
         SELECT
           m.id, m.nombre, m.precio, m.categoria_id, m.descripcion, m.disponible, m.imagen as imagen_url,
@@ -102,18 +87,14 @@ class MenuController {
         WHERE pe.disponible = true AND pe.vigente = true AND c.activo = true
         ORDER BY categoria_nombre, nombre
       `);
-
       const allItems = itemsResult.rows;
       const platosEspeciales = allItems.filter(item => item.es_especial);
       const menuItems = allItems.filter(item => !item.es_especial);
-
       const categorias = categoriesResult.rows.map(categoria => ({
         ...categoria,
         items: menuItems.filter(item => item.categoria_id === categoria.id)
       }));
-
       console.log(`✅ Menú web: ${categorias.length} categorías, ${menuItems.length} items, ${platosEspeciales.length} especiales`);
-
       const response = {
         categorias: categorias,
         platos_especiales: platosEspeciales,
@@ -126,7 +107,6 @@ class MenuController {
         },
         timestamp: new Date().toISOString()
       };
-
       res.json(response);
     } catch (error) {
       console.error('❌ Error getting menu for web:', error);
@@ -134,7 +114,7 @@ class MenuController {
     }
   }
 
-  // ✅ OBTENER SOLO PLATOS ESPECIALES - SIN CAMBIOS
+  // ✅ OBTENER SOLO PLATOS ESPECIALES
   async getSpecialItems(req, res) {
     try {
       console.log('⭐ Obteniendo platos especiales...');
@@ -169,13 +149,11 @@ class MenuController {
                created_at, updated_at, 'especiales' as origen
         FROM platos_especiales WHERE vigente = true ORDER BY created_at DESC
       `);
-
       const responseData = {
         categorias: categoriasResult.rows,
         menuItems: menuItemsResult.rows,
         platosEspeciales: platosEspecialesResult.rows,
       };
-
       console.log(`✅ Sync: ${responseData.categorias.length} categorías, ${responseData.menuItems.length} items menú, ${responseData.platosEspeciales.length} especiales`);
       res.json({ success: true, data: { ...responseData, timestamp: new Date().toISOString() } });
     } catch (error) {
@@ -184,7 +162,7 @@ class MenuController {
     }
   }
 
-  // Resto de los métodos sin cambios significativos por ahora...
+  // OBTENER ITEM ESPECÍFICO
   async getMenuItem(req, res) {
     try {
       const { id } = req.params;
@@ -200,13 +178,10 @@ class MenuController {
     }
   }
 
+  // DEBUG
   async debugMenu(req, res) {
     try {
-      const debugInfo = {
-        database_structure: {},
-        table_counts: {},
-        sample_data: {}
-      };
+      const debugInfo = { database_structure: {}, table_counts: {}, sample_data: {} };
       const tables = ['categorias', 'menu_items', 'platos_especiales'];
       for (const table of tables) {
         try {
@@ -224,6 +199,27 @@ class MenuController {
     } catch (error) {
       res.status(500).json({ success: false, message: 'Error en debug', error: error.message });
     }
+  }
+
+  // Métodos de admin (placeholders para evitar crash)
+  async createMenuItem(req, res) {
+    res.status(501).json({ message: 'Create menu item not implemented yet' });
+  }
+
+  async updateMenuItem(req, res) {
+    res.status(501).json({ message: 'Update menu item not implemented yet' });
+  }
+
+  async deleteMenuItem(req, res) {
+    res.status(501).json({ message: 'Delete menu item not implemented yet' });
+  }
+
+  async toggleAvailability(req, res) {
+    res.status(501).json({ message: 'Toggle availability not implemented yet' });
+  }
+
+  async createSpecialItem(req, res) {
+    res.status(501).json({ message: 'Create special item not implemented yet' });
   }
 }
 
