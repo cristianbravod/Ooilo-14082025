@@ -16,7 +16,6 @@ import ApiService from "./services/ApiService";
 // ✅ COMPONENTES
 import LoginScreen from "./screens/LoginScreen";
 import LoadingScreen from "./components/LoadingScreen";
-import AppHeader from "./components/AppHeader";
 import AppNavigator from "./navigation/AppNavigator";
 
 // ✅ COMPONENTE INTERNO CON SAFE AREA
@@ -299,13 +298,6 @@ function MainAppContent() {
         translucent={false}
       />
       
-      {/* Header de la aplicación */}
-      <AppHeader 
-        user={user}
-        syncStatus={syncStatus}
-        isOffline={isOffline}
-        onRefresh={handleRefresh}
-      />
       
       {/* Navegador principal con datos */}
       <AppNavigator 
