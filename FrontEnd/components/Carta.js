@@ -322,7 +322,6 @@ export default function Carta({
       console.error('❌ Error cargando productos:', error);
       setSyncStatus('❌ Error de conexión - modo offline activado');
       setEndpointDisponible(false);
-      setIsOfflineMode(true);
       setErrorConexion(error.message);
     } finally {
       setLoading(false);
@@ -355,10 +354,7 @@ export default function Carta({
         setHasNewImage(true);
         setImageError(false);
         
-        setFormData(prev => ({
-          ...prev,
-          imagen_url: result.assets[0].uri
-        }));
+        setFormData(prev => ({ ...prev, imagen_url: result.assets[0].uri }));
       }
     } catch (error) {
       console.error('Error seleccionando imagen:', error);
@@ -513,7 +509,7 @@ export default function Carta({
       console.log('✏️ Actualizando producto con datos:', productoActualizado);
 
       if (endpointDisponible) {
-        const response = await ApiService.updateItem(modoEdicion, productoActualizado, false);
+        const response = await ApiService.updateMenuItem(modoEdicion, productoActualizado);
         
         const productoCompleto = {
           ...response,
@@ -573,7 +569,7 @@ export default function Carta({
               setLoading(true);
               
               if (endpointDisponible) {
-                await ApiService.deleteItem(id, false);
+                await ApiService.deleteMenuItem(id);
                 
                 if (typeof setMenu === 'function') {
                   setMenu(prev => Array.isArray(prev) ? prev.filter(producto => producto.id !== id) : []);
@@ -662,7 +658,7 @@ export default function Carta({
       const productoActualizado = { ...producto, disponible: !producto.disponible };
       
       if (endpointDisponible) {
-        await ApiService.updateItem(producto.id, productoActualizado, false);
+        await ApiService.updateMenuItem(producto.id, productoActualizado);
       } else {
         await guardarCambioOffline('update', productoActualizado);
         setPendingChanges(prev => prev + 1);
@@ -1124,7 +1120,7 @@ export default function Carta({
         </View>
 
         {/* ✅ LISTA DE PRODUCTOS POR CATEGORÍA DINÁMICA */}
-        {categoriasDisponibles.map((categoria) => {
+         {categoriasDisponibles.map((categoria) => {
           const key = categoria.nombre.toLowerCase().replace(/\s+/g, '');
           const productos = productosPorCategoria[key] || [];
           
