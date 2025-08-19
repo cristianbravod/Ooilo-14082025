@@ -1,1175 +1,394 @@
-// Pedidos.js - Sistema completo de gestión de pedidos por mesa
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// FrontEnd/components/Pedidos.js - Refactored
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  Modal,
-  Platform,
-  ActivityIndicator,
-  RefreshControl,
-  Image,
-  TextInput
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal,
+  ActivityIndicator, RefreshControl, Image, TextInput, Platform
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import ApiService from '../services/ApiService';
 import { useAuth } from '../contexts/AuthContext';
 
-export default function Pedidos({ 
-  navigation,
-  menu = [],           
-  platosEspeciales = [], 
-  pedidos = [],        
-  setPedidos,          
-  ventas = [],         
-  setVentas            
-}) {
-  const { user, userRole } = useAuth();
-
-  // ==========================================
-  // ESTADOS PRINCIPALES
-  // ==========================================
-  const [categoriasDisponibles, setCategoriasDisponibles] = useState([]);
-  const [platosEspecialesLocal, setPlatosEspecialesLocal] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+export default function Pedidos({ menu = [], platosEspeciales = [], categorias = [] }) {
+  const { user } = useAuth();
+  const isInitialMount = useRef(true);
   
-  // ✅ NUEVOS ESTADOS PARA SISTEMA DE MESAS
   const [mesasDisponibles, setMesasDisponibles] = useState([]);
   const [mesaActual, setMesaActual] = useState(null);
-  const [loadingMesas, setLoadingMesas] = useState(false);
-  const [mostrarSelectorMesa, setMostrarSelectorMesa] = useState(false);
+  const [pedidosMesas, setPedidosMesas] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
   
-  // ✅ ESTADOS PARA GESTIÓN DE PEDIDOS POR MESA
-  const [pedidosMesas, setPedidosMesas] = useState({}); // {mesaId: {productos: [], estado: 'abierto/enviado/cerrado', timestamp: ''}}
-  const [productosTemporales, setProductosTemporales] = useState([]); // Productos agregados antes de enviar
-  
-  // Estados de carga
-  const [loadingCategorias, setLoadingCategorias] = useState(false);
-  const [loadingEspeciales, setLoadingEspeciales] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [enviandoPedido, setEnviandoPedido] = useState(false);
+  const [mostrarSelectorMesa, setMostrarSelectorMesa] = useState(false);
 
-  // ==========================================
-  // FUNCIONES DE UTILIDAD
-  // ==========================================
-
-  const formatearPrecio = useCallback((precio) => {
-    if (typeof precio !== 'number') {
-      precio = parseFloat(precio) || 0;
-    }
-    return `$${precio.toLocaleString('es-CL')}`;
-  }, []);
-
-  const getNombreCategoriaById = useCallback((categoriaId) => {
-    if (!categoriaId || !Array.isArray(categoriasDisponibles)) {
-      return 'Sin Categoría';
-    }
-    
-    const categoria = categoriasDisponibles.find(cat => 
-      cat.id === categoriaId || cat.id === parseInt(categoriaId)
-    );
-    
-    return categoria ? categoria.nombre : 'Sin Categoría';
-  }, [categoriasDisponibles]);
-
-  // ✅ FUNCIÓN PARA OBTENER PEDIDO ACTUAL DE LA MESA
-  const getPedidoMesaActual = useCallback(() => {
-    if (!mesaActual) return { productos: [], estado: 'nuevo', total: 0 };
-    
-    const pedidoMesa = pedidosMesas[mesaActual.id] || { productos: [], estado: 'nuevo' };
-    const todosProductos = [...pedidoMesa.productos, ...productosTemporales];
-    const total = todosProductos.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-    
-    return {
-      ...pedidoMesa,
-      productos: todosProductos,
-      total
-    };
-  }, [mesaActual, pedidosMesas, productosTemporales]);
-
-  // ==========================================
-  // FUNCIONES DE CARGA DE DATOS
-  // ==========================================
-
-  const cargarMesasDisponibles = useCallback(async () => {
+  const cargarMesas = async () => {
+    setRefreshing(true);
     try {
-      setLoadingMesas(true);
-      console.log('🪑 Cargando mesas disponibles...');
-      
       const mesas = await ApiService.getMesas();
-      console.log('✅ Mesas cargadas:', mesas.length);
-      
-      const mesasParaPedidos = mesas.filter(mesa => 
-        mesa.activa !== false && 
-        (mesa.estado === 'disponible' || mesa.estado === 'ocupada')
-      );
-      
-      setMesasDisponibles(mesasParaPedidos);
-      
+      setMesasDisponibles(mesas.filter(m => m.activa !== false && m.estado !== 'fuera_servicio'));
     } catch (error) {
       console.error('❌ Error cargando mesas:', error);
+      Alert.alert('Error', 'Hubo un problema cargando las mesas.');
     } finally {
-      setLoadingMesas(false);
+      setRefreshing(false);
     }
+  };
+
+  useEffect(() => {
+    cargarMesas();
   }, []);
 
-  const cargarCategoriasDesdeDB = useCallback(async () => {
-    try {
-      setLoadingCategorias(true);
-      const categorias = await ApiService.getCategorias();
-      setCategoriasDisponibles(categorias);
-    } catch (error) {
-      console.error('❌ Error cargando categorías:', error);
-      setCategoriasDisponibles([
-        { id: 1, nombre: 'Bebidas' },
-        { id: 2, nombre: 'Platos Principales' }
-      ]);
-    } finally {
-      setLoadingCategorias(false);
-    }
-  }, []);
-
-  const cargarPlatosEspeciales = useCallback(async () => {
-    try {
-      setLoadingEspeciales(true);
-      const especiales = await ApiService.getPlatosEspeciales();
-      setPlatosEspecialesLocal(especiales);
-    } catch (error) {
-      console.error('❌ Error cargando platos especiales:', error);
-      setPlatosEspecialesLocal([]);
-    } finally {
-      setLoadingEspeciales(false);
-    }
-  }, []);
-
-  const cargarDatosIniciales = useCallback(async () => {
-    try {
-      await Promise.all([
-        cargarMesasDisponibles(),
-        cargarCategoriasDesdeDB(),
-        cargarPlatosEspeciales()
-      ]);
-    } catch (error) {
-      console.error('❌ Error en carga inicial:', error);
-      Alert.alert('Error', 'Hubo un problema cargando los datos iniciales');
-    }
-  }, [cargarMesasDisponibles, cargarCategoriasDesdeDB, cargarPlatosEspeciales]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await cargarDatosIniciales();
-    setRefreshing(false);
-  }, [cargarDatosIniciales]);
-
-  // ==========================================
-  // EFECTOS
-  // ==========================================
   useEffect(() => {
     const cargarPedidosGuardados = async () => {
       try {
-        const pedidosGuardados = await AsyncStorage.getItem('pedidosMesas');
-        if (pedidosGuardados !== null) {
-          setPedidosMesas(JSON.parse(pedidosGuardados));
+        const jsonValue = await AsyncStorage.getItem('@pedidosMesas');
+        if (jsonValue != null) {
+          setPedidosMesas(JSON.parse(jsonValue));
+          console.log('✅ Pedidos recuperados de AsyncStorage');
         }
-      } catch (error) {
-        console.error('Error cargando pedidos desde AsyncStorage:', error);
+      } catch (e) {
+        console.error('❌ Error al cargar pedidos desde AsyncStorage', e);
       }
     };
     cargarPedidosGuardados();
-    cargarDatosIniciales();
-  }, [cargarDatosIniciales]);
+  }, []);
 
   useEffect(() => {
-    const guardarPedidos = async () => {
-      try {
-        await AsyncStorage.setItem('pedidosMesas', JSON.stringify(pedidosMesas));
-      } catch (error) {
-        console.error('Error guardando pedidos en AsyncStorage:', error);
-      }
-    };
-    guardarPedidos();
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+    } else {
+      const guardarPedidos = async () => {
+        try {
+          const jsonValue = JSON.stringify(pedidosMesas);
+          await AsyncStorage.setItem('@pedidosMesas', jsonValue);
+        } catch (e) {
+          console.error('❌ Error guardando pedidos en AsyncStorage:', e);
+        }
+      };
+      guardarPedidos();
+    }
   }, [pedidosMesas]);
 
-  useEffect(() => {
-    console.log('🔍 DEBUG PEDIDOS - Props recibidas:', {
-      menu_length: menu?.length || 0,
-      platosEspeciales_length: platosEspeciales?.length || 0,
-      categorias_length: categoriasDisponibles?.length || 0
-    });
-  }, [menu, platosEspeciales, categoriasDisponibles]);
+  const formatearPrecio = useCallback((precio) => {
+    const numPrecio = typeof precio === 'string' ? parseFloat(precio) : precio;
+    if (isNaN(numPrecio)) return '$0';
+    return `$${numPrecio.toLocaleString('es-CL')}`;
+  }, []);
 
-  // ==========================================
-  // FILTRADO Y PROCESAMIENTO DE DATOS
-  // ==========================================
+  const getPedidoMesaActual = useCallback(() => {
+    if (!mesaActual) return { productos: [], productosNuevos: [], total: 0 };
+    const pedidoGuardado = pedidosMesas[mesaActual.id] || { productos: [], productosNuevos: [] };
+    const todosProductos = [...(pedidoGuardado.productos || []), ...(pedidoGuardado.productosNuevos || [])];
+    const total = todosProductos.reduce((sum, item) => {
+        const precio = typeof item.precio === 'string' ? parseFloat(item.precio) : item.precio;
+        return sum + (precio * item.cantidad);
+    }, 0);
+    return { ...pedidoGuardado, productos: todosProductos, total };
+  }, [mesaActual, pedidosMesas]);
 
-  const filtrarProductosPorCategoria = useCallback((nombreCategoria) => {
-    if (!Array.isArray(menu)) return [];
-
-    return menu.filter((producto) => {
-      if (!producto || typeof producto !== 'object') return false;
-
-      let categoriaProducto = '';
-      if (producto.categoria_id) {
-        categoriaProducto = getNombreCategoriaById(producto.categoria_id);
-      } else if (producto.categoria) {
-        categoriaProducto = producto.categoria;
-      } else if (producto.categoria_nombre) {
-        categoriaProducto = producto.categoria_nombre;
-      }
-
-      const estaDisponible = producto.disponible !== false;
-      const coincideCategoria = categoriaProducto === nombreCategoria;
-      const esEspecial = categoriaProducto.toLowerCase().includes('especial') || 
-                        producto.es_especial === true;
-
-      const searchLower = searchQuery.toLowerCase();
-      const nameLower = producto.nombre.toLowerCase();
-
-      return estaDisponible && coincideCategoria && !esEspecial && nameLower.includes(searchLower);
-    });
-  }, [menu, getNombreCategoriaById, searchQuery]);
-
-  const productosPorCategoria = useMemo(() => {
-    const resultado = {};
-    if (!Array.isArray(categoriasDisponibles)) return resultado;
-
-    categoriasDisponibles.forEach(categoria => {
-      const productos = filtrarProductosPorCategoria(categoria.nombre);
-      const key = categoria.nombre.toLowerCase().replace(/\s+/g, '');
-      resultado[key] = productos;
-    });
-
-    return resultado;
-  }, [categoriasDisponibles, filtrarProductosPorCategoria]);
-
-  const especialesDisponibles = useMemo(() => {
-    const especiales = Array.isArray(platosEspeciales) && platosEspeciales.length > 0 
-      ? platosEspeciales 
-      : platosEspecialesLocal;
-
-    if (!Array.isArray(especiales)) return [];
-
-    return especiales.filter((plato) => {
-      if (!plato || typeof plato !== 'object') return false;
-      const searchLower = searchQuery.toLowerCase();
-      const nameLower = plato.nombre.toLowerCase();
-      return plato.disponible !== false && nameLower.includes(searchLower);
-    });
-  }, [platosEspeciales, platosEspecialesLocal, searchQuery]);
-
-  // ==========================================
-  // FUNCIONES DE GESTIÓN DE PEDIDOS
-  // ==========================================
-
-  // ✅ AGREGAR PRODUCTO AL PEDIDO TEMPORAL
-  const agregarProducto = useCallback((item, esEspecial = false) => {
+  const agregarProducto = useCallback((item, esEspecial) => {
     if (!mesaActual) {
-      Alert.alert('Error', 'Debes seleccionar una mesa antes de agregar productos');
+      Alert.alert('Atención', 'Por favor, selecciona una mesa antes de agregar productos.');
       return;
     }
-
-    setProductosTemporales(prev => {
-      const existente = prev.find(p => p.id === item.id);
-      if (existente) {
-        return prev.map(p => 
-          p.id === item.id 
-            ? { ...p, cantidad: p.cantidad + 1 }
-            : p
-        );
-      } else {
-        return [...prev, { 
-          ...item, 
-          cantidad: 1, 
-          esEspecial,
-          categoria: item.categoria || getNombreCategoriaById(item.categoria_id),
-          timestamp: new Date().toISOString()
-        }];
-      }
-    });
-  }, [mesaActual, getNombreCategoriaById]);
-
-  // ✅ CAMBIAR CANTIDAD EN PEDIDO DE MESA
-  const cambiarCantidadPedido = useCallback((itemId, nuevaCantidad, esTemporal = false) => {
-    if (nuevaCantidad <= 0) {
-      eliminarDelPedido(itemId, esTemporal);
-      return;
-    }
-
-    if (esTemporal) {
-      setProductosTemporales(prev => 
-        prev.map(item => 
-          item.id === itemId 
-            ? { ...item, cantidad: nuevaCantidad }
-            : item
-        )
-      );
-    } else {
-      // Cambiar cantidad en pedido ya enviado (pedido adicional)
-      setPedidosMesas(prev => ({
-        ...prev,
-        [mesaActual.id]: {
-          ...prev[mesaActual.id],
-          productos: prev[mesaActual.id]?.productos.map(item =>
-            item.id === itemId
-              ? { ...item, cantidad: nuevaCantidad }
-              : item
-          ) || []
-        }
-      }));
-    }
-  }, [mesaActual]);
-
-  // ✅ ELIMINAR DEL PEDIDO
-  const eliminarDelPedido = useCallback((itemId, esTemporal = false) => {
-    if (esTemporal) {
-      setProductosTemporales(prev => prev.filter(item => item.id !== itemId));
-    } else {
-      setPedidosMesas(prev => ({
-        ...prev,
-        [mesaActual.id]: {
-          ...prev[mesaActual.id],
-          productos: prev[mesaActual.id]?.productos.filter(item => item.id !== itemId) || []
-        }
-      }));
-    }
-  }, [mesaActual]);
-
-  // ✅ ENVIAR PEDIDO A COCINA
-  const enviarPedidoACocina = useCallback(async () => {
-    if (productosTemporales.length === 0) {
-      Alert.alert('Error', 'No hay productos nuevos para enviar');
-      return;
-    }
-
-    if (!mesaActual) {
-      Alert.alert('Error', 'Debes seleccionar una mesa');
-      return;
-    }
-
-    try {
-      setEnviandoPedido(true);
-
-      const pedidoData = {
-        mesa_id: mesaActual.id,
-        mesa_nombre: mesaActual.nombre,
-        mesa_tipo: mesaActual.tipo,
-        productos: productosTemporales,
-        total: productosTemporales.reduce((sum, item) => sum + (item.precio * item.cantidad), 0),
-        fecha: new Date().toISOString(),
-        estado: 'enviado',
-        camarero: user?.nombre || 'Usuario',
-        numero_pedido: `${mesaActual.nombre}-${Date.now()}`
-      };
-
-      console.log('📤 Enviando pedido a cocina:', pedidoData);
+    setPedidosMesas(prev => {
+      const pedidoActual = prev[mesaActual.id] || { productos: [], productosNuevos: [] };
+      const productosNuevos = pedidoActual.productosNuevos || [];
+      const existente = productosNuevos.find(p => p.id === item.id && p.es_especial === esEspecial);
       
+      let productosNuevosActualizados;
+      if (existente) {
+        productosNuevosActualizados = productosNuevos.map(p => p.id === item.id && p.es_especial === esEspecial ? { ...p, cantidad: p.cantidad + 1 } : p);
+      } else {
+        productosNuevosActualizados = [...productosNuevos, { ...item, cantidad: 1, es_especial: esEspecial }];
+      }
+
+      return {
+        ...prev,
+        [mesaActual.id]: {
+          ...pedidoActual,
+          productosNuevos: productosNuevosActualizados
+        }
+      };
+    });
+  }, [mesaActual]);
+  
+  const eliminarDelPedido = (itemId, esEspecial) => {
+    if (!mesaActual) return;
+    
+    setPedidosMesas(prev => {
+      const pedidoActual = prev[mesaActual.id];
+      if (!pedidoActual) return prev;
+
+      const productosNuevosActualizados = (pedidoActual.productosNuevos || []).filter(p => !(p.id === itemId && p.es_especial === esEspecial));
+      const productosEnviadosActualizados = (pedidoActual.productos || []).filter(p => !(p.id === itemId && p.es_especial === esEspecial));
+
+      return {
+        ...prev,
+        [mesaActual.id]: {
+          ...pedidoActual,
+          productos: productosEnviadosActualizados,
+          productosNuevos: productosNuevosActualizados
+        }
+      };
+    });
+  };
+
+  const cambiarCantidadPedido = useCallback((itemId, esEspecial, nuevaCantidad) => {
+    if (!mesaActual) return;
+
+    if (nuevaCantidad < 1) {
+      eliminarDelPedido(itemId, esEspecial);
+      return;
+    }
+    
+    setPedidosMesas(prev => {
+      const pedidoActual = prev[mesaActual.id];
+      if (!pedidoActual) return prev;
+
+      const updateList = (list) => list.map(p => (p.id === itemId && p.es_especial === esEspecial) ? { ...p, cantidad: nuevaCantidad } : p);
+
+      const enNuevos = (pedidoActual.productosNuevos || []).some(p => p.id === itemId && p.es_especial === esEspecial);
+
+      return {
+        ...prev,
+        [mesaActual.id]: {
+          ...pedidoActual,
+          productosNuevos: enNuevos ? updateList(pedidoActual.productosNuevos) : pedidoActual.productosNuevos,
+          productos: !enNuevos ? updateList(pedidoActual.productos) : pedidoActual.productos,
+        }
+      };
+    });
+  }, [mesaActual]);
+
+  const enviarPedidoACocina = useCallback(async () => {
+    if (!mesaActual) return;
+    const productosNuevos = pedidosMesas[mesaActual.id]?.productosNuevos || [];
+    if (productosNuevos.length === 0) return Alert.alert('Info', 'No hay productos nuevos para enviar a cocina.');
+    
+    setEnviandoPedido(true);
+    try {
       const pedidoParaEnviar = {
         mesa: mesaActual.nombre,
-        items: productosTemporales,
-        total: pedidoData.total,
+        items: productosNuevos.map(p => ({ ...p, menu_item_id: p.id, precio: parseFloat(p.precio) })),
+        total: productosNuevos.reduce((sum, item) => sum + (parseFloat(item.precio) * item.cantidad), 0),
         cliente: `Mesa ${mesaActual.nombre}`,
-        observaciones: `Pedido por ${user?.nombre || 'Usuario'}`
+        observaciones: `Pedido por ${user?.nombre || 'sistema'}`
       };
-
-      await ApiService.createPedido(pedidoParaEnviar);
       
-      // Mover productos temporales al pedido de la mesa
-      setPedidosMesas(prev => ({
-        ...prev,
-        [mesaActual.id]: {
-          productos: [...(prev[mesaActual.id]?.productos || []), ...productosTemporales],
-          estado: 'enviado',
-          timestamp: new Date().toISOString(),
-          mesa: mesaActual
-        }
-      }));
-
-      // Limpiar productos temporales
-      setProductosTemporales([]);
-
-      Alert.alert(
-        'Pedido Enviado', 
-        `Pedido enviado a cocina para ${mesaActual.nombre}\nProductos: ${productosTemporales.length}\nTotal: ${formatearPrecio(pedidoData.total)}`
-      );
+      await ApiService.createQuickOrder(pedidoParaEnviar);
       
+      setPedidosMesas(prev => {
+        const pedidoAnterior = prev[mesaActual.id];
+        return {
+          ...prev,
+          [mesaActual.id]: {
+            ...pedidoAnterior,
+            productos: [...(pedidoAnterior.productos || []), ...productosNuevos],
+            productosNuevos: [],
+            estado: 'enviado',
+          }
+        };
+      });
+      Alert.alert('Éxito', `Nuevos productos enviados a cocina para ${mesaActual.nombre}.`);
     } catch (error) {
-      console.error('❌ Error enviando pedido:', error);
-      Alert.alert('Error', 'No se pudo enviar el pedido a cocina');
+      console.error('❌ Error enviando pedido adicional:', error);
+      Alert.alert('Error', `No se pudo enviar el pedido a cocina. ${error.message}`);
     } finally {
       setEnviandoPedido(false);
     }
-  }, [productosTemporales, mesaActual, user, formatearPrecio]);
-
-  // ✅ CERRAR MESA
-  const cerrarMesa = useCallback(async () => {
+  }, [pedidosMesas, mesaActual, user]);
+  
+  const cerrarMesa = useCallback(() => {
+    if (!mesaActual) return;
     const pedidoMesa = getPedidoMesaActual();
-    
-    if (pedidoMesa.productos.length === 0) {
-      Alert.alert('Error', 'No hay pedidos en esta mesa');
-      return;
-    }
+    if (pedidoMesa.productos.length === 0) return Alert.alert('Info', 'No hay nada que cobrar en esta mesa.');
 
     Alert.alert(
-      'Cerrar Mesa',
-      `¿Confirmas cerrar ${mesaActual.nombre}?\nTotal: ${formatearPrecio(pedidoMesa.total)}\nProductos: ${pedidoMesa.productos.length}`,
+      'Confirmar Cierre',
+      `¿Deseas cerrar la mesa ${mesaActual.nombre} con un total de ${formatearPrecio(pedidoMesa.total)}?`,
       [
-        {
-          text: 'Cancelar',
-          style: 'cancel'
-        },
-        {
-          text: 'Cerrar Mesa',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Guardar venta final
-              const ventaFinal = {
-                id: `venta-${mesaActual.id}-${Date.now()}`,
-                mesa: mesaActual.nombre,
-                productos: pedidoMesa.productos,
-                total: pedidoMesa.total,
-                fecha: new Date().toISOString(),
-                camarero: user?.nombre || 'Usuario'
-              };
-
-              // Aquí llamarías a ApiService.cerrarMesa(ventaFinal)
-              
-              // Limpiar mesa
-              setPedidosMesas(prev => {
-                const newState = { ...prev };
-                delete newState[mesaActual.id];
-                return newState;
-              });
-              setProductosTemporales([]);
-              setMesaActual(null);
-
-              Alert.alert('Mesa Cerrada', 'La mesa ha sido cerrada exitosamente');
-              
-            } catch (error) {
-              console.error('❌ Error cerrando mesa:', error);
-              Alert.alert('Error', 'No se pudo cerrar la mesa');
-            }
-          }
-        }
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Cerrar Mesa', style: 'destructive', onPress: () => {
+            setPedidosMesas(prev => {
+                const newPedidos = { ...prev };
+                delete newPedidos[mesaActual.id];
+                return newPedidos;
+            });
+            setMesaActual(null);
+            Alert.alert('Mesa Cerrada', `${mesaActual.nombre} ha sido cerrada.`);
+        }}
       ]
     );
-  }, [getPedidoMesaActual, mesaActual, user, formatearPrecio]);
+  }, [mesaActual, getPedidoMesaActual, formatearPrecio, pedidosMesas]);
 
-  // ==========================================
-  // COMPONENTES DE RENDERIZADO
-  // ==========================================
+  const { menuFiltrado, especialesFiltrados } = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    const filtrar = (lista) => lista.filter(p => p.nombre.toLowerCase().includes(searchLower));
+    
+    const menuFiltrado = {};
+    const menuNormal = menu.filter(p => p && p.nombre);
 
-  const renderSelectorMesa = () => {
-    if (loadingMesas) {
-      return (
-        <View style={styles.mesaSelector}>
-          <Text style={styles.label}>Mesa:</Text>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color="#4a6ee0" />
-            <Text style={styles.loadingText}>Cargando mesas...</Text>
-          </View>
-        </View>
-      );
+    if (searchQuery) {
+        menuFiltrado['Resultados de la Búsqueda'] = filtrar(menuNormal);
+    } else {
+        categorias.forEach(cat => {
+            if (cat && cat.nombre) {
+                menuFiltrado[cat.nombre] = menuNormal.filter(p => p.categoria_id === cat.id && p.disponible !== false);
+            }
+        });
     }
+    const especialesFiltrados = filtrar(platosEspeciales.filter(p => p && p.nombre && p.disponible !== false));
+    return { menuFiltrado, especialesFiltrados };
+  }, [searchQuery, menu, platosEspeciales, categorias]);
 
-    const mesaTexto = mesaActual ? mesaActual.nombre : 'Seleccionar mesa';
+  const pedidoActual = getPedidoMesaActual();
 
-    return (
-      <View style={styles.mesaSelector}>
-        <Text style={styles.label}>Mesa:</Text>
-        <TouchableOpacity 
-          style={styles.mesaPicker}
-          onPress={() => setMostrarSelectorMesa(true)}
-        >
-          <Text style={styles.mesaTexto}>{mesaTexto}</Text>
-          <Ionicons name="chevron-down" size={20} color="#666" />
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderProductGrid = (productos, esSeccionEspecial = false) => {
-    if (!Array.isArray(productos) || productos.length === 0) {
-      return (
-        <View style={styles.emptySection}>
-          <Text style={styles.emptySectionText}>No hay productos disponibles</Text>
-        </View>
-      );
-    }
-
+  const renderProductGrid = (productos, esEspecial = false) => {
+    if (!productos || productos.length === 0) return null;
     const filas = [];
     for (let i = 0; i < productos.length; i += 2) {
       filas.push(productos.slice(i, i + 2));
     }
-
     return filas.map((fila, filaIndex) => (
       <View key={filaIndex} style={styles.gridRow}>
-        {fila.map((item) => {
-          if (!item || !item.id || !item.nombre) return null;
-
-          return (
-            <TouchableOpacity
-              key={`${item.id}-${esSeccionEspecial ? 'especial' : 'regular'}`}
-              style={styles.productCard}
-              onPress={() => agregarProducto(item, esSeccionEspecial)}
-            >
-              <View style={styles.productImageContainer}>
-                {item.imagen_url || item.imagen ? (
-                  <Image 
-                    source={{ uri: item.imagen_url || item.imagen }} 
-                    style={styles.productImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.placeholderImage}>
-                    <Ionicons name="restaurant" size={24} color="#999" />
-                  </View>
-                )}
-              </View>
-              <Text style={styles.productName}>{item.nombre}</Text>
-              <Text style={styles.productPrice}>{formatearPrecio(item.precio)}</Text>
-              {esSeccionEspecial && (
-                <View style={styles.especialBadge}>
-                  <Text style={styles.especialText}>PIC</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-        {fila.length === 1 && <View style={styles.productCard} />}
+        {fila.map((item) => (
+          <TouchableOpacity key={`${item.id}-${esEspecial}`} style={styles.productCard} onPress={() => agregarProducto(item, esEspecial)}>
+            <Image source={{ uri: item.imagen_url || item.imagen }} style={styles.productImage} />
+            <Text style={styles.productName} numberOfLines={2}>{item.nombre}</Text>
+            <Text style={styles.productPrice}>{formatearPrecio(item.precio)}</Text>
+          </TouchableOpacity>
+        ))}
+        {fila.length % 2 !== 0 && <View style={styles.productCardPlaceholder} />}
       </View>
     ));
   };
 
-  // ✅ RENDERIZAR PEDIDO DE MESA ACTUAL
-  const renderPedidoMesa = () => {
-    const pedidoMesa = getPedidoMesaActual();
-    
-    if (pedidoMesa.productos.length === 0) {
-      return null;
-    }
+  const renderPedidoYResumen = () => {
+    if (!mesaActual || pedidoActual.productos.length === 0) return null;
+    const productosNuevos = pedidosMesas[mesaActual.id]?.productosNuevos || [];
 
     return (
-      <View style={styles.pedidoMesaContainer}>
-        <Text style={styles.pedidoMesaTitulo}>
-          Pedidos de {mesaActual?.nombre || 'Mesa'}
-        </Text>
-        
-        {pedidoMesa.productos.map((item, index) => {
-          const esTemporal = productosTemporales.some(p => p.id === item.id);
-          
-          return (
-            <View key={`${item.id}-${index}`} style={styles.pedidoItem}>
-              <View style={styles.pedidoImageContainer}>
-                {item.imagen_url || item.imagen ? (
-                  <Image 
-                    source={{ uri: item.imagen_url || item.imagen }} 
-                    style={styles.pedidoImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.pedidoPlaceholder}>
-                    <Ionicons name="restaurant" size={20} color="#999" />
-                  </View>
-                )}
-              </View>
-              
-              <View style={styles.pedidoInfo}>
-                <Text style={styles.pedidoNombre}>
-                  {item.nombre} {item.esEspecial && '⚡'}
-                </Text>
-                <Text style={styles.pedidoCategoria}>
-                  ({item.categoria || 'Sin Categoría'}) {item.esEspecial && '- Especial'}
-                </Text>
-                <Text style={styles.pedidoPrecio}>{formatearPrecio(item.precio)}</Text>
-              </View>
-              
-              <View style={styles.pedidoControles}>
-                <TouchableOpacity
-                  style={styles.cantidadButton}
-                  onPress={() => cambiarCantidadPedido(item.id, item.cantidad - 1, esTemporal)}
-                >
-                  <Ionicons name="remove" size={16} color="#fff" />
-                </TouchableOpacity>
-                
-                <Text style={styles.cantidadText}>{item.cantidad}</Text>
-                
-                <TouchableOpacity
-                  style={[styles.cantidadButton, styles.cantidadButtonAdd]}
-                  onPress={() => cambiarCantidadPedido(item.id, item.cantidad + 1, esTemporal)}
-                >
-                  <Ionicons name="add" size={16} color="#fff" />
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={styles.eliminarButton}
-                  onPress={() => eliminarDelPedido(item.id, esTemporal)}
-                >
-                  <Ionicons name="trash" size={16} color="#fff" />
-                </TouchableOpacity>
-              </View>
+        <View style={styles.resumenCard}>
+            <Text style={styles.pedidoMesaTitulo}>Pedido de {mesaActual.nombre}</Text>
+            {pedidoActual.productos.map(item => {
+                const esNuevo = (pedidosMesas[mesaActual.id]?.productosNuevos || []).some(p => p.id === item.id && p.es_especial === item.es_especial);
+                return (
+                    <View key={`${item.id}-${item.es_especial}`} style={styles.pedidoItem}>
+                        <Text style={[styles.pedidoNombre, !esNuevo && styles.itemEnviado]} numberOfLines={1}>
+                            {!esNuevo && "🧾 "}{item.nombre}
+                        </Text>
+                        <View style={styles.pedidoControles}>
+                            <TouchableOpacity onPress={() => cambiarCantidadPedido(item.id, item.es_especial, item.cantidad - 1)}><Ionicons name="remove-circle-outline" size={28} color="#FF9800" /></TouchableOpacity>
+                            <Text style={styles.cantidadText}>{item.cantidad}</Text>
+                            <TouchableOpacity onPress={() => cambiarCantidadPedido(item.id, item.es_especial, item.cantidad + 1)}><Ionicons name="add-circle" size={28} color="#4CAF50" /></TouchableOpacity>
+                            <TouchableOpacity onPress={() => eliminarDelPedido(item.id, item.es_especial)} style={{marginLeft: 10}}><Ionicons name="trash-bin" size={24} color="#f44336" /></TouchableOpacity>
+                        </View>
+                    </View>
+                );
+            })}
+            <View style={styles.resumenTotal}>
+              <Text style={styles.totalText}>Total: {formatearPrecio(pedidoActual.total)}</Text>
             </View>
-          );
-        })}
-      </View>
-    );
-  };
-
-  // ✅ RENDERIZAR RESUMEN Y BOTONES
-  const renderResumenYBotones = () => {
-    const pedidoMesa = getPedidoMesaActual();
-    const totalProductos = pedidoMesa.productos.reduce((sum, item) => sum + item.cantidad, 0);
-    const hayProductosTemporales = productosTemporales.length > 0;
-    
-    if (pedidoMesa.productos.length === 0) {
-      return null;
-    }
-
-    return (
-      <View style={styles.resumenContainer}>
-        <View style={styles.resumenTotal}>
-          <Text style={styles.totalText}>Total: {formatearPrecio(pedidoMesa.total)}</Text>
-          <Text style={styles.productosText}>Productos: {totalProductos}</Text>
-        </View>
-        
-        {hayProductosTemporales && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.enviarButton]}
-            onPress={enviarPedidoACocina}
-            disabled={enviandoPedido}
-          >
-            {enviandoPedido ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.actionButtonText}>ENVIAR A COCINA</Text>
-            )}
-          </TouchableOpacity>
-        )}
-        
-        <TouchableOpacity
-          style={[styles.actionButton, styles.cerrarButton]}
-          onPress={cerrarMesa}
-        >
-          <Text style={styles.actionButtonText}>CERRAR MESA</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderModalSelectorMesa = () => (
-    <Modal
-      visible={mostrarSelectorMesa}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => setMostrarSelectorMesa(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Seleccionar Mesa</Text>
-            <TouchableOpacity
-              onPress={() => setMostrarSelectorMesa(false)}
-              style={styles.modalCloseButton}
-            >
-              <Ionicons name="close" size={24} color="#333" />
+            <TouchableOpacity style={[styles.actionButton, styles.enviarButton, productosNuevos.length === 0 && styles.buttonDisabled]} onPress={enviarPedidoACocina} disabled={enviandoPedido || productosNuevos.length === 0}>
+              {enviandoPedido ? <ActivityIndicator color="#fff" /> : <Text style={styles.actionButtonText}>Enviar a Cocina ({productosNuevos.length})</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionButton, styles.cerrarButton]} onPress={cerrarMesa}>
+                <Text style={styles.actionButtonText}>Cerrar Mesa</Text>
             </TouchableOpacity>
           </View>
-          
-          <ScrollView style={styles.mesasList}>
-            {mesasDisponibles.map((mesa) => (
-              <TouchableOpacity
-                key={mesa.id}
-                style={[
-                  styles.mesaItem,
-                  mesa.estado === 'ocupada' && styles.mesaOcupada
-                ]}
-                onPress={() => {
-                  setMesaActual(mesa);
-                  setMostrarSelectorMesa(false);
-                }}
-              >
-                <View style={styles.mesaInfo}>
-                  <Text style={styles.mesaNombre}>{mesa.nombre}</Text>
-                  <Text style={styles.mesaDetalle}>
-                    {mesa.tipo} • {mesa.ubicacion || 'Sin ubicación'}
-                  </Text>
-                  <Text style={[
-                    styles.mesaEstado,
-                    mesa.estado === 'disponible' ? styles.estadoDisponible : styles.estadoOcupada
-                  ]}>
-                    {mesa.estado === 'disponible' ? 'Disponible' : 'Ocupada'}
-                  </Text>
-                </View>
-                <Ionicons 
-                  name={mesa.estado === 'disponible' ? "checkmark-circle" : "time-outline"} 
-                  size={24} 
-                  color={mesa.estado === 'disponible' ? "#4CAF50" : "#FF9800"} 
-                />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
+    );
+  }
 
-  // ==========================================
-  // RENDER PRINCIPAL DEL COMPONENTE
-  // ==========================================
   return (
     <View style={styles.container}>
-      {renderSelectorMesa()}
-
+      <View style={styles.mesaSelector}>
+        <Text style={styles.label}>Mesa:</Text>
+        <TouchableOpacity style={styles.mesaPicker} onPress={() => setMostrarSelectorMesa(true)}>
+          <Text style={styles.mesaTexto}>{mesaActual ? mesaActual.nombre : 'Seleccionar mesa'}</Text>
+          <Ionicons name="chevron-down" size={20} color="#666" />
+        </TouchableOpacity>
+      </View>
+      
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar producto..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
+        <TextInput style={styles.searchInput} placeholder="Buscar producto..." value={searchQuery} onChangeText={setSearchQuery} />
       </View>
 
-      <ScrollView 
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Secciones de Categorías del Menú */}
-        {categoriasDisponibles.map((categoria) => {
-          const key = categoria.nombre.toLowerCase().replace(/\s+/g, '');
-          const productos = productosPorCategoria[key] || [];
-          
-          if (productos.length === 0) return null;
-          
-          return (
-            <View key={categoria.id} style={styles.categoriaSeccion}>
-              <Text style={styles.categoriaTitulo}>
-                {categoria.nombre}({productos.length})
-              </Text>
-              <View style={styles.productosContainer}>
-                {renderProductGrid(productos, false)}
-              </View>
-            </View>
-          );
-        })}
-
-        {/* Sección de Platos Especiales */}
-        {especialesDisponibles.length > 0 && (
+      <ScrollView style={styles.scrollView} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={cargarMesas} />}>
+        {especialesFiltrados.length > 0 && (
           <View style={styles.categoriaSeccion}>
-            <Text style={styles.categoriaTitulo}>
-              Especiales({especialesDisponibles.length})
-            </Text>
-            <View style={styles.productosContainer}>
-              {renderProductGrid(especialesDisponibles, true)}
-            </View>
+            <Text style={styles.categoriaTitulo}>🌟 Especiales</Text>
+            {renderProductGrid(especialesFiltrados, true)}
           </View>
         )}
-
-        {/* Pedido de Mesa Actual */}
-        {renderPedidoMesa()}
-
-        <View style={{ height: 150 }} />
+        
+        {Object.entries(menuFiltrado).map(([categoria, productos]) => (
+          productos.length > 0 && (
+            <View key={categoria} style={styles.categoriaSeccion}>
+              <Text style={styles.categoriaTitulo}>{categoria}</Text>
+              {renderProductGrid(productos, false)}
+            </View>
+          )
+        ))}
+        
+        {renderPedidoYResumen()}
       </ScrollView>
 
-      {/* Resumen y Botones de Acción */}
-      {renderResumenYBotones()}
-
-      {/* Modal Selector de Mesa */}
-      {renderModalSelectorMesa()}
+      <Modal visible={mostrarSelectorMesa} animationType="slide" transparent={true} onRequestClose={() => setMostrarSelectorMesa(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Seleccionar Mesa</Text>
+            <ScrollView>
+              {mesasDisponibles.map(mesa => (
+                <TouchableOpacity key={mesa.id} style={styles.mesaItem} onPress={() => { setMesaActual(mesa); setMostrarSelectorMesa(false); }}>
+                  <Text style={styles.mesaNombre}>{mesa.nombre}</Text>
+                  <Ionicons name={pedidosMesas[mesa.id] && (pedidosMesas[mesa.id].productos?.length > 0 || pedidosMesas[mesa.id].productosNuevos?.length > 0) ? "close-circle" : "checkmark-circle"} size={24} color={pedidosMesas[mesa.id] && (pedidosMesas[mesa.id].productos?.length > 0 || pedidosMesas[mesa.id].productosNuevos?.length > 0) ? "#FF9800" : "#4CAF50"} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-// ==========================================
-// ESTILOS
-// ==========================================
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  
-  // Selector de Mesa
-  mesaSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 12,
-    color: '#333',
-  },
-  mesaPicker: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  mesaTexto: {
-    fontSize: 16,
-    color: '#333',
-    flex: 1,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  loadingText: {
-    marginLeft: 8,
-    color: '#666',
-    fontSize: 14,
-  },
-
-  // Categorías y Productos
-  categoriaSeccion: {
-    marginTop: 20,
-  },
-  categoriaTitulo: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 15,
-  },
-  productosContainer: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  gridRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  productCard: {
-    width: '48%',
-    backgroundColor: '#C8E6C9',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    minHeight: 140,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  productImageContainer: {
-    width: 60,
-    height: 45,
-    marginBottom: 8,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  productImage: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholderImage: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-  },
-  productName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  productPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#d32f2f',
-  },
-  especialBadge: {
-    backgroundColor: '#d32f2f',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  especialText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  emptySection: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptySectionText: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-  },
-
-  // Pedido de Mesa
-  pedidoMesaContainer: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    margin: 16,
-    padding: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  pedidoMesaTitulo: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
-  },
-  pedidoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  pedidoImageContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginRight: 12,
-  },
-  pedidoImage: {
-    width: '100%',
-    height: '100%',
-  },
-  pedidoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pedidoInfo: {
-    flex: 1,
-  },
-  pedidoNombre: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  pedidoCategoria: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  pedidoPrecio: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#d32f2f',
-    marginTop: 2,
-  },
-  pedidoControles: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cantidadButton: {
-    backgroundColor: '#FF9800',
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 4,
-  },
-  cantidadButtonAdd: {
-    backgroundColor: '#4CAF50',
-  },
-  cantidadText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginHorizontal: 8,
-    minWidth: 20,
-    textAlign: 'center',
-  },
-  eliminarButton: {
-    backgroundColor: '#f44336',
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-
-  // Resumen y Botones
-  resumenContainer: {
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  resumenTotal: {
-    backgroundColor: '#37474F',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-  },
-  totalText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  productosText: {
-    fontSize: 14,
-    color: 'white',
-  },
-  actionButton: {
-    margin: 16,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  enviarButton: {
-    backgroundColor: '#4CAF50',
-    marginBottom: 8,
-  },
-  cerrarButton: {
-    backgroundColor: '#d32f2f',
-    marginTop: 0,
-  },
-  actionButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    width: '90%',
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  mesasList: {
-    maxHeight: 400,
-  },
-  mesaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    backgroundColor: 'white',
-  },
-  mesaOcupada: {
-    backgroundColor: '#fff3e0',
-  },
-  mesaInfo: {
-    flex: 1,
-  },
-  mesaNombre: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  mesaDetalle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  mesaEstado: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  estadoDisponible: {
-    color: '#4CAF50',
-  },
-  estadoOcupada: {
-    color: '#FF9800',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    margin: 16,
-    paddingHorizontal: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: 12,
-  },
+    container: { flex: 1, backgroundColor: '#f5f5f5' },
+    mesaSelector: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 16, borderBottomWidth: 1, borderColor: '#e0e0e0' },
+    label: { fontSize: 16, fontWeight: '600', marginRight: 12 },
+    mesaPicker: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 8, borderWidth: 1, borderColor: '#ddd', borderRadius: 8 },
+    mesaTexto: { fontSize: 16 },
+    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 8, marginHorizontal: 16, marginTop: 16, paddingHorizontal: 12, borderWidth: 1, borderColor: '#e0e0e0' },
+    searchIcon: { marginRight: 8 },
+    searchInput: { flex: 1, fontSize: 16, paddingVertical: Platform.OS === 'ios' ? 12 : 8 },
+    scrollView: { flex: 1 },
+    categoriaSeccion: { marginTop: 20 },
+    categoriaTitulo: { fontSize: 20, fontWeight: 'bold', marginBottom: 10, paddingHorizontal: 16 },
+    gridRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+    productCard: { width: '48%', backgroundColor: 'white', borderRadius: 12, padding: 12, alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: {width: 0, height: 2} },
+    productCardPlaceholder: { width: '48%' },
+    productImage: { width: '100%', height: 100, borderRadius: 8, marginBottom: 8 },
+    productName: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
+    productPrice: { fontSize: 16, fontWeight: 'bold', color: '#d32f2f', marginTop: 2 },
+    resumenCard: { backgroundColor: 'white', borderRadius: 12, margin: 16, padding: 16, marginTop: 20, borderWidth: 1, borderColor: '#e0e0e0' },
+    pedidoMesaTitulo: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
+    pedidoItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderColor: '#f0f0f0' },
+    pedidoNombre: { fontSize: 16, flex: 1 },
+    itemEnviado: { color: '#777', fontStyle: 'italic' },
+    pedidoControles: { flexDirection: 'row', alignItems: 'center' },
+    cantidadText: { fontSize: 18, fontWeight: 'bold', marginHorizontal: 12 },
+    resumenTotal: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: '#f0f0f0', alignItems: 'flex-end' },
+    totalText: { fontSize: 18, fontWeight: 'bold' },
+    actionButton: { marginTop: 10, padding: 14, borderRadius: 8, alignItems: 'center' },
+    enviarButton: { backgroundColor: '#4CAF50' },
+    cerrarButton: { backgroundColor: '#d32f2f' },
+    buttonDisabled: { backgroundColor: '#a5d6a7' },
+    actionButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+    modalContent: { backgroundColor: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '60%' },
+    modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
+    mesaItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 15, borderBottomWidth: 1, borderColor: '#f0f0f0' },
 });
