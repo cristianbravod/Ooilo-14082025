@@ -209,19 +209,11 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       setImageUploadResult(result);
       console.log('✅ Resultado de la subida:', result);
       
-      if (result && result.urls) {
-        return result.urls.medium || result.defaultUrl;
-      } else if (result && result.defaultUrl) {
-        return result.defaultUrl;
-      } else {
-        // Si no hay resultado, devolver la URI local
-        return selectedImage.uri;
-      }
+      return result; // Devolver el objeto de resultado completo
     } catch (error) {
       console.error('Error subiendo imagen:', error);
       setImageError(true);
-      // En caso de error, devolver la URI local
-      return selectedImage.uri;
+      return { success: false, error: error.message };
     } finally {
       setUploadingImage(false);
     }
@@ -274,11 +266,25 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       setLoading(true);
       setSyncStatus('📝 Creando plato especial...');
       
-      // Subir imagen si existe
-      let imagenUrl = null;
+      let imagenUrls = {};
+
       if (selectedImage && hasNewImage) {
         console.log('📤 Subiendo imagen...');
-        imagenUrl = await subirImagen();
+        const uploadResult = await subirImagen();
+        console.log('✅ Resultado de la subida (dentro de crearPlatoEspecial):', uploadResult);
+        
+        if (uploadResult && uploadResult.success && uploadResult.urls) {
+          console.log('✅ Asignando URLs de imagen...');
+          imagenUrls = {
+            imagen_url: uploadResult.urls.medium,
+            imagen_thumbnail: uploadResult.urls.thumbnail,
+            imagen_medium: uploadResult.urls.medium,
+            imagen_large: uploadResult.urls.large,
+          };
+          console.log('✅ URLs asignadas:', imagenUrls);
+        } else {
+          console.log('⚠️ No se asignaron las URLs. Resultado de la subida:', uploadResult);
+        }
       }
 
       const nuevoPlato = {
@@ -289,10 +295,9 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
         vegetariano: formData.vegetariano,
         picante: formData.picante,
         fecha_fin: formData.fecha_fin || null,
-        imagen_url: imagenUrl,
-        imagen: imagenUrl,
         fecha_inicio: new Date().toISOString(),
-        categoria_id: 6 // ID de categoría "Platos Especiales"
+        categoria_id: 6,
+        ...imagenUrls,
       };
 
       console.log('🍽️ Enviando plato especial:', nuevoPlato);
@@ -300,17 +305,8 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       const response = await ApiService.createPlatoEspecial(nuevoPlato);
       
       if (response) {
-        // Usar el plato devuelto por el servidor
         const platoCreado = response.plato || response;
-        
-        // Asegurar que el plato tenga los campos necesarios
-        const platoCompleto = {
-          ...platoCreado,
-          imagen_url: platoCreado.imagen_url || imagenUrl,
-          imagen: platoCreado.imagen || imagenUrl
-        };
-        
-        setPlatosEspeciales(prev => [...prev, platoCompleto]);
+        setPlatosEspeciales(prev => [...prev, platoCreado]);
         setSyncStatus('✅ Plato especial creado exitosamente');
         Alert.alert('Éxito', 'Plato especial creado correctamente');
         limpiarFormulario();
@@ -327,6 +323,7 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       setTimeout(() => setSyncStatus(''), 3000);
     }
   };
+  
 
   const actualizarPlatoEspecial = async () => {
     if (!validarFormulario() || !modoEdicion) {
@@ -338,14 +335,23 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       setLoading(true);
       setSyncStatus('🔄 Actualizando plato especial...');
       
-      let imagenUrl = existingImageUrl || formData.imagen_url;
+      let imagenUrls = {
+        imagen_url: existingImageUrl || formData.imagen_url,
+        imagen_thumbnail: existingImageUrl ? existingImageUrl.replace('medium', 'thumbnail') : null,
+        imagen_medium: existingImageUrl,
+        imagen_large: existingImageUrl ? existingImageUrl.replace('medium', 'large') : null,
+      };
       
-      // Solo subir nueva imagen si se seleccionó una
       if (selectedImage && hasNewImage) {
         console.log('📤 Subiendo nueva imagen...');
-        const nuevaImagenUrl = await subirImagen();
-        if (nuevaImagenUrl) {
-          imagenUrl = nuevaImagenUrl;
+        const uploadResult = await subirImagen();
+        if (uploadResult && uploadResult.urls) {
+          imagenUrls = {
+            imagen_url: uploadResult.urls.medium,
+            imagen_thumbnail: uploadResult.urls.thumbnail,
+            imagen_medium: uploadResult.urls.medium,
+            imagen_large: uploadResult.urls.large,
+          };
         }
       }
 
@@ -357,8 +363,7 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
         vegetariano: formData.vegetariano,
         picante: formData.picante,
         fecha_fin: formData.fecha_fin || null,
-        imagen_url: imagenUrl,
-        imagen: imagenUrl,
+        ...imagenUrls,
         categoria_id: 6
       };
 
@@ -368,16 +373,8 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       const response = await ApiService.updatePlatoEspecial(modoEdicion, platoActualizado);
       
       if (response) {
-        // Usar el plato devuelto por el servidor
         const platoActualizadoServidor = response.plato || response;
-        
-        // Asegurar que tenga todos los campos
-        const platoCompleto = {
-          ...platoActualizadoServidor,
-          imagen_url: platoActualizadoServidor.imagen_url || imagenUrl,
-          imagen: platoActualizadoServidor.imagen || imagenUrl
-        };
-        
+        const platoCompleto = { ...platoActualizadoServidor, ...imagenUrls };
         setPlatosEspeciales(prev => 
           prev.map(plato => plato.id === modoEdicion ? platoCompleto : plato)
         );
@@ -416,10 +413,8 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
               console.log('🗑️ Eliminando plato especial ID:', id);
               await ApiService.deletePlatoEspecial(id);
               
-              // Remover del estado local
               setPlatosEspeciales(prev => prev.filter(plato => plato.id !== id));
               setSyncStatus('✅ Plato especial eliminado exitosamente');
-              
               Alert.alert('Éxito', 'Plato especial eliminado correctamente');
               
             } catch (error) {
@@ -443,7 +438,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
     
     console.log('✏️ Editando plato especial:', plato);
     
-    // Configurar datos del formulario
     setFormData({
       nombre: plato.nombre || '',
       precio: (plato.precio || 0).toString(),
@@ -455,7 +449,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       imagen_url: plato.imagen_url || plato.imagen || ''
     });
     
-    // Configurar imagen existente
     const imagenExistente = plato.imagen_url || plato.imagen;
     if (imagenExistente) {
       console.log('🖼️ Plato especial tiene imagen existente:', imagenExistente);
@@ -467,14 +460,12 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       setSelectedImage(null);
     }
     
-    // Resetear estados de nueva imagen
     setHasNewImage(false);
     setImageError(false);
     setImageUploadProgress(0);
     setImageUploadResult(null);
     setUploadingImage(false);
     
-    // Configurar modo edición
     setModoEdicion(plato.id);
     
     setSyncStatus('✏️ Editando plato especial...');
@@ -490,15 +481,12 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
     if (!plato || typeof plato !== 'object') return;
 
     try {
-      // Invertir el valor actual
       const nuevaDisponibilidad = !plato.disponible;
       
       console.log(`🔄 Cambiando disponibilidad de "${plato.nombre}": ${plato.disponible} -> ${nuevaDisponibilidad}`);
       
-      // Llamar al endpoint específico de disponibilidad
       await ApiService.togglePlatoEspecialAvailability(plato.id, nuevaDisponibilidad);
       
-      // Actualizar el estado local inmediatamente
       setPlatosEspeciales(prev => 
         prev.map(p => {
           if (p.id === plato.id) {
@@ -517,7 +505,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       console.error('❌ Error toggleando disponibilidad:', error);
       Alert.alert('Error', 'No se pudo cambiar la disponibilidad. Intenta nuevamente.');
       
-      // Si hay error, revertir el cambio visual
       setPlatosEspeciales(prev => 
         prev.map(p => 
           p.id === plato.id ? { ...p, disponible: plato.disponible } : p
@@ -540,7 +527,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
       imagen_url: ''
     });
     
-    // Limpiar todos los estados de imagen
     setSelectedImage(null);
     setExistingImageUrl(null);
     setHasNewImage(false);
@@ -556,10 +542,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
     
     console.log('🧹 Formulario de plato especial limpiado completamente');
   };
-
-  // ============================================
-  // FUNCIONES DE ACTUALIZACIÓN Y REFRESH
-  // ============================================
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -580,10 +562,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
     }
   }, [setPlatosEspeciales]);
 
-  // ============================================
-  // EFECTOS
-  // ============================================
-
   useEffect(() => {
     const verificarEndpoint = async () => {
       try {
@@ -601,10 +579,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
     verificarEndpoint();
   }, []);
 
-  // ============================================
-  // CÁLCULO DE PADDING DINÁMICO
-  // ============================================
-
   const getTopPadding = () => {
     if (Platform.OS === 'android') {
       return StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 35;
@@ -617,10 +591,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
   };
 
   const imageToShow = getImageToShow();
-
-  // ============================================
-  // RENDER PRINCIPAL
-  // ============================================
 
   return (
     <View style={[styles.container, { paddingTop: getTopPadding() }]}>
@@ -638,12 +608,10 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
         }
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Platos Especiales</Text>
         </View>
 
-        {/* Estado de conexión */}
         {syncStatus && typeof syncStatus === 'string' && syncStatus.length > 0 && (
           <View style={[
             styles.statusContainer,
@@ -653,13 +621,12 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
             <Text style={styles.statusText}>{syncStatus}</Text>
             {pendingChanges > 0 && (
               <Text style={styles.statusSubtext}>
-                {pendingChanges} cambios pendientes de sincronización
+                {`${pendingChanges} cambios pendientes de sincronización`}
               </Text>
             )}
           </View>
         )}
 
-        {/* Alerta de modo fallback */}
         {modoFallback && (
           <View style={styles.alertContainer}>
             <Ionicons name="warning" size={20} color="#e65100" />
@@ -669,7 +636,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
           </View>
         )}
 
-        {/* Formulario */}
         <View style={styles.formContainer}>
           <View style={styles.formHeader}>
             <Text style={styles.formTitle}>
@@ -688,7 +654,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
             </TouchableOpacity>
           </View>
 
-          {/* Campos básicos */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Nombre del Plato *</Text>
             <TextInput
@@ -737,7 +702,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
             )}
           </View>
 
-          {/* Disponibilidad */}
           <View style={styles.switchContainer}>
             <Text style={styles.label}>Disponible</Text>
             <Switch
@@ -748,7 +712,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
             />
           </View>
 
-          {/* Imagen del plato */}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Imagen del Plato</Text>
             
@@ -825,7 +788,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
             )}
           </View>
 
-          {/* Campos avanzados */}
           {showAdvancedForm && (
             <>
               <View style={styles.switchContainer}>
@@ -860,7 +822,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
             </>
           )}
 
-          {/* Botones */}
           <View style={styles.buttonContainer}>
             {modoEdicion ? (
               <>
@@ -906,7 +867,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
           </View>
         </View>
 
-        {/* Lista de platos especiales */}
         <View style={styles.listContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.listTitle}>Platos Especiales Activos</Text>
@@ -944,7 +904,6 @@ export default function PlatoEspecial({ platosEspeciales = [], setPlatosEspecial
           )}
         </View>
 
-        {/* Espacio adicional para el scroll */}
         <View style={{ height: 100 }} />
       </ScrollView>
     </View>
@@ -966,7 +925,6 @@ function PlatoEspecialCard({
   const [imageError, setImageError] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
 
-  // Validación temprana
   if (!plato || typeof plato !== 'object' || !plato.id) {
     return null;
   }
@@ -990,7 +948,6 @@ function PlatoEspecialCard({
     <View style={styles.platoCard}>
       <View style={styles.platoHeader}>
         <View style={styles.platoInfo}>
-          {/* Imagen del plato especial */}
           {(plato.imagen_url || plato.imagen) && !imageError && (
             <View style={styles.platoImageContainer}>
               <Image
@@ -1010,7 +967,6 @@ function PlatoEspecialCard({
               </Text>
             )}
             
-            {/* Badges de características */}
             <View style={styles.platoBadgesContainer}>
               {plato.vegetariano && (
                 <View style={styles.badgeVegetariano}>
@@ -1036,9 +992,7 @@ function PlatoEspecialCard({
           </View>
         </View>
 
-        {/* Botones de Acción */}
         <View style={styles.platoActions}>
-          {/* Botón de Editar */}
           {userRole === 'admin' && typeof onEdit === 'function' && (
             <TouchableOpacity
               style={styles.editButton}
@@ -1048,7 +1002,6 @@ function PlatoEspecialCard({
             </TouchableOpacity>
           )}
 
-          {/* Botón de Eliminar */}
           {userRole === 'admin' && typeof onDelete === 'function' && (
             <TouchableOpacity
               style={styles.deleteButton}
@@ -1058,7 +1011,6 @@ function PlatoEspecialCard({
             </TouchableOpacity>
           )}
 
-          {/* Botón de Toggle Disponibilidad */}
           {userRole === 'admin' && typeof onToggleAvailability === 'function' && (
             <TouchableOpacity
               style={[
