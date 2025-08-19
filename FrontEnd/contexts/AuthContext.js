@@ -1,10 +1,10 @@
-// contexts/AuthContext.js - VERSIÓN CORREGIDA PARA LOGIN
+// contexts/AuthContext.js - VERSIóN CORREGIDA PARA LOGIN
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert } from 'react-native';
 import ApiService from '../services/ApiService';
 
-// 🔐 ESTADOS DE AUTENTICACIÓN
+// ?? ESTADOS DE AUTENTICACIóN
 export const AuthStates = {
   INITIALIZING: 'initializing',
   UNAUTHENTICATED: 'unauthenticated',
@@ -15,7 +15,7 @@ export const AuthStates = {
   OFFLINE: 'offline'
 };
 
-// 🎯 CONTEXTO DE AUTENTICACIÓN
+// ?? CONTEXTO DE AUTENTICACIóN
 const AuthContext = createContext({
   user: null,
   isLoggedIn: false,
@@ -38,9 +38,9 @@ const AuthContext = createContext({
   checkAuthStatus: async () => {}
 });
 
-// 🔧 PROVIDER DE AUTENTICACIÓN
+// ?? PROVIDER DE AUTENTICACIóN
 export function AuthProvider({ children }) {
-  // 🔐 Estados de usuario y autenticación
+  // ?? Estados de usuario y autenticación
   const [user, setUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -48,7 +48,7 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null);
   const [state, setState] = useState(AuthStates.INITIALIZING);
   
-  // 🌐 Estados de conexión y servidor
+  // ?? Estados de conexión y servidor
   const [isOffline, setIsOffline] = useState(false);
   const [serverStatus, setServerStatus] = useState({
     isWarm: false,
@@ -61,24 +61,24 @@ export function AuthProvider({ children }) {
   const [isColdStart, setIsColdStart] = useState(false);
   const [needsRetry, setNeedsRetry] = useState(false);
 
-  // 🎯 PROPIEDADES DERIVADAS
+  // ?? PROPIEDADES DERIVADAS
   const userRole = user?.rol || null;
 
-  // 🚀 INICIALIZACIÓN AL CARGAR LA APP
+  // ?? INICIALIZACIóN AL CARGAR LA APP
   useEffect(() => {
     initializeAuth();
   }, []);
 
-  // 📊 MONITOREO DE ESTADO DEL SERVIDOR
+  // ?? MONITOREO DE ESTADO DEL SERVIDOR
   useEffect(() => {
     const interval = setInterval(checkServerStatus, 30000); // Cada 30 segundos
     return () => clearInterval(interval);
   }, [isLoggedIn]);
 
-  // 🔄 INICIALIZACIÓN DE LA AUTENTICACIÓN
+  // ?? INICIALIZACIóN DE LA AUTENTICACIóN
   const initializeAuth = async () => {
     try {
-      console.log('🔄 Inicializando autenticación...');
+      console.log('?? Inicializando autenticación...');
       setState(AuthStates.INITIALIZING);
       
       // Verificar si hay token y datos guardados
@@ -90,7 +90,7 @@ export function AuthProvider({ children }) {
       if (savedToken && savedUserData) {
         try {
           const userData = JSON.parse(savedUserData);
-          console.log('🔑 Sesión encontrada, restaurando para:', userData.email);
+          console.log('?? Sesión encontrada, restaurando para:', userData.email);
           
           // Configurar token en ApiService
           if (ApiService.setAuthToken) {
@@ -98,7 +98,7 @@ export function AuthProvider({ children }) {
           }
           
           // Restaurar sesión directamente si tenemos datos válidos
-          console.log('✅ Restaurando sesión automáticamente');
+          console.log('? Restaurando sesión automáticamente');
           setUser(userData);
           setIsLoggedIn(true);
           setState(AuthStates.AUTHENTICATED);
@@ -108,18 +108,18 @@ export function AuthProvider({ children }) {
           verifyTokenInBackground(savedToken);
           
         } catch (parseError) {
-          console.log('❌ Error parseando datos guardados:', parseError.message);
+          console.log('? Error parseando datos guardados:', parseError.message);
           await clearStoredAuth();
           setState(AuthStates.UNAUTHENTICATED);
         }
         
       } else {
-        console.log('📝 No hay sesión guardada');
+        console.log('?? No hay sesión guardada');
         setState(AuthStates.UNAUTHENTICATED);
       }
       
     } catch (error) {
-      console.error('❌ Error inicializando auth:', error);
+      console.error('? Error inicializando auth:', error);
       setState(AuthStates.ERROR);
       setError(error.message);
     } finally {
@@ -127,28 +127,31 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 🔍 VERIFICAR TOKEN EN BACKGROUND (sin bloquear UI)
+  // ?? VERIFICAR TOKEN EN BACKGROUND (sin bloquear UI)
   const verifyTokenInBackground = async (token) => {
     try {
-      console.log('🔍 Verificando token en background...');
+      console.log('?? Verificando token en background...');
       const verificationResult = await ApiService.request('/auth/verify');
       
       if (verificationResult.success && verificationResult.user) {
-        console.log('✅ Token verificado exitosamente');
+        console.log('? Token verificado exitosamente');
         // Actualizar datos del usuario si han cambiado
-        setUser(verificationResult.user);
-        await AsyncStorage.setItem('userData', JSON.stringify(verificationResult.user));
+        if (JSON.stringify(verificationResult.user) !== JSON.stringify(user)) {
+            setUser(verificationResult.user);
+            await AsyncStorage.setItem('userData', JSON.stringify(verificationResult.user));
+        }
       } else {
-        console.log('⚠️ Token inválido, manteniendo sesión offline');
+        console.log('?? Token inválido en background, cerrando sesión...');
+        await logout();
       }
       
     } catch (error) {
-      console.log('⚠️ Verificación de token falló (modo offline):', error.message);
-      // No cerrar sesión, permitir uso offline
+      console.log('?? Verificación de token falló, cerrando sesión...', error.message);
+      await logout();
     }
   };
 
-  // 🔍 VERIFICAR ESTADO DEL SERVIDOR
+  // ?? VERIFICAR ESTADO DEL SERVIDOR
   const checkServerStatus = async () => {
     try {
       const startTime = Date.now();
@@ -176,7 +179,7 @@ export function AuthProvider({ children }) {
       }
       
     } catch (error) {
-      console.log('⚠️ Server status check failed:', error.message);
+      console.log('?? Server status check failed:', error.message);
       
       setServerStatus(prev => ({
         ...prev,
@@ -201,42 +204,42 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 🔑 FUNCIÓN DE LOGIN CORREGIDA
+  // ?? FUNCIóN DE LOGIN CORREGIDA
   const login = async (email, password) => {
     try {
       setLoading(true);
       setError(null);
       setState(AuthStates.AUTHENTICATING);
       
-      console.log('🔐 Intentando login para:', email);
+      console.log('?? Intentando login para:', email);
       
       // Verificar conectividad antes del login
       if (Platform.OS === 'android' && !__DEV__) {
-        console.log('📱 Verificando conectividad en APK...');
+        console.log('?? Verificando conectividad en APK...');
         const healthCheck = await ApiService.healthCheck();
         
         if (!healthCheck.success) {
           setIsColdStart(true);
           setState(AuthStates.COLD_START);
-          console.log('❄️ Servidor en cold start, reintentando...');
+          console.log('?? Servidor en cold start, reintentando...');
           
           // Esperar un poco más para cold start
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
       }
       
-      // ✅ LLAMADA AL LOGIN - MANEJO MEJORADO
-      console.log('📡 Llamando a ApiService.login...');
+      // ? LLAMADA AL LOGIN - MANEJO MEJORADO
+      console.log('?? Llamando a ApiService.login...');
       const loginResponse = await ApiService.login(email, password);
       
-      console.log('📥 Respuesta de login recibida:', {
+      console.log('?? Respuesta de login recibida:', {
         hasToken: !!loginResponse.token,
         hasUser: !!loginResponse.user,
         message: loginResponse.message,
         success: loginResponse.success
       });
       
-      // ✅ VALIDACIÓN MEJORADA DE LA RESPUESTA
+      // ? VALIDACIóN MEJORADA DE LA RESPUESTA
       let isValidResponse = false;
       let userData = null;
       let token = null;
@@ -247,7 +250,7 @@ export function AuthProvider({ children }) {
         isValidResponse = true;
         userData = loginResponse.user;
         token = loginResponse.token;
-        console.log('✅ Formato de respuesta estándar detectado');
+        console.log('? Formato de respuesta estándar detectado');
         
       } else if (loginResponse.token && loginResponse.message === 'Login successful') {
         // Formato alternativo: mensaje exitoso pero user podría estar en otro campo
@@ -259,7 +262,7 @@ export function AuthProvider({ children }) {
           email: email,
           rol: 'admin'
         };
-        console.log('✅ Formato de respuesta alternativo detectado');
+        console.log('? Formato de respuesta alternativo detectado');
         
       } else if (loginResponse.success === true && loginResponse.token) {
         // Formato con flag success
@@ -271,7 +274,7 @@ export function AuthProvider({ children }) {
           email: email,
           rol: 'admin'
         };
-        console.log('✅ Formato con flag success detectado');
+        console.log('? Formato con flag success detectado');
         
       } else if (loginResponse.message === 'Login successful' && 
                  (loginResponse.token || ApiService.authToken)) {
@@ -284,11 +287,11 @@ export function AuthProvider({ children }) {
           email: email,
           rol: 'admin'
         };
-        console.log('✅ Formato especial con mensaje exitoso detectado');
+        console.log('? Formato especial con mensaje exitoso detectado');
       }
       
       if (isValidResponse && token && userData) {
-        console.log('🎉 Login exitoso! Configurando sesión...');
+        console.log('?? Login exitoso! Configurando sesión...');
         
         // Guardar datos de autenticación
         await Promise.all([
@@ -313,8 +316,8 @@ export function AuthProvider({ children }) {
         setIsColdStart(false);
         setNeedsRetry(false);
         
-        console.log('✅ Sesión configurada exitosamente para:', userData.email);
-        console.log('🎯 Estado de autenticación:', AuthStates.AUTHENTICATED);
+        console.log('? Sesión configurada exitosamente para:', userData.email);
+        console.log('?? Estado de autenticación:', AuthStates.AUTHENTICATED);
         
         return { 
           success: true, 
@@ -323,13 +326,13 @@ export function AuthProvider({ children }) {
         };
         
       } else {
-        // ❌ RESPUESTA NO VÁLIDA
-        console.error('❌ Respuesta de login no válida:', loginResponse);
+        // ? RESPUESTA NO VáLIDA
+        console.error('? Respuesta de login no válida:', loginResponse);
         throw new Error(loginResponse.message || 'Respuesta de login inválida');
       }
       
     } catch (error) {
-      console.error('❌ Error en login:', error.message);
+      console.error('? Error en login:', error.message);
       
       // Limpiar estados en caso de error
       await clearStoredAuth();
@@ -345,7 +348,7 @@ export function AuthProvider({ children }) {
         if (error.message.includes('timeout') || error.message.includes('network')) {
           userMessage = 'Error de conexión. Verifica tu internet.';
         } else if (error.message.includes('credentials') || error.message.includes('401')) {
-          userMessage = 'Email o contraseña incorrectos.';
+          userMessage = 'Email o contrase?a incorrectos.';
         } else if (error.message.includes('server') || error.message.includes('500')) {
           userMessage = 'Error del servidor. Intenta más tarde.';
         }
@@ -364,17 +367,17 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 🚪 FUNCIÓN DE LOGOUT
+  // ?? FUNCIóN DE LOGOUT
   const logout = async () => {
     try {
-      console.log('👋 Cerrando sesión...');
+      console.log('?? Cerrando sesión...');
       setLoading(true);
       
       // Intentar logout en el servidor (opcional)
       try {
         await ApiService.logout();
       } catch (logoutError) {
-        console.log('⚠️ Error en logout del servidor (continuando):', logoutError.message);
+        console.log('?? Error en logout del servidor (continuando):', logoutError.message);
       }
       
       // Limpiar datos locales
@@ -386,12 +389,12 @@ export function AuthProvider({ children }) {
       setState(AuthStates.UNAUTHENTICATED);
       setError(null);
       
-      console.log('✅ Sesión cerrada exitosamente');
+      console.log('? Sesión cerrada exitosamente');
       
       return { success: true };
       
     } catch (error) {
-      console.error('❌ Error cerrando sesión:', error);
+      console.error('? Error cerrando sesión:', error);
       
       // Forzar limpieza aunque haya error
       await clearStoredAuth();
@@ -406,14 +409,14 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 🔄 FUNCIÓN DE RETRY CONNECTION
+  // ?? FUNCIóN DE RETRY CONNECTION
   const retryConnection = async () => {
     try {
       setError(null);
       setConnectionAttempts(0);
       setCanRetry(false);
       
-      console.log('🔄 Reintentando conexión...');
+      console.log('?? Reintentando conexión...');
       
       await checkServerStatus();
       
@@ -431,7 +434,7 @@ export function AuthProvider({ children }) {
       }
       
     } catch (error) {
-      console.error('❌ Error en retry connection:', error);
+      console.error('? Error en retry connection:', error);
       setError(error.message);
       
       setTimeout(() => {
@@ -440,19 +443,19 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 🔄 FUNCIÓN DE SWITCH USER
+  // ?? FUNCIóN DE SWITCH USER
   const switchUser = async () => {
     try {
-      console.log('🔄 Cambiando usuario...');
+      console.log('?? Cambiando usuario...');
       await logout();
       setState(AuthStates.UNAUTHENTICATED);
       
     } catch (error) {
-      console.error('❌ Error en switch user:', error);
+      console.error('? Error en switch user:', error);
     }
   };
 
-  // ✅ VERIFICAR ESTADO DE AUTENTICACIÓN
+  // ? VERIFICAR ESTADO DE AUTENTICACIóN
   const checkAuthStatus = async () => {
     try {
       if (!isLoggedIn || !user) {
@@ -474,7 +477,7 @@ export function AuthProvider({ children }) {
       }
       
     } catch (error) {
-      console.log('❌ Auth status check failed:', error.message);
+      console.log('? Auth status check failed:', error.message);
       
       // Si el token es inválido, cerrar sesión
       if (error.message.includes('token') || error.message.includes('unauthorized')) {
@@ -485,7 +488,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 🧹 LIMPIAR DATOS ALMACENADOS
+  // ?? LIMPIAR DATOS ALMACENADOS
   const clearStoredAuth = async () => {
     try {
       await AsyncStorage.multiRemove([
@@ -497,13 +500,13 @@ export function AuthProvider({ children }) {
         'platos_especiales_cache',
         'informes_ventas_cache'
       ]);
-      console.log('🧹 Datos de autenticación limpiados');
+      console.log('?? Datos de autenticación limpiados');
     } catch (error) {
-      console.error('❌ Error limpiando datos:', error);
+      console.error('? Error limpiando datos:', error);
     }
   };
 
-  // 🚫 LIMPIAR ERROR
+  // ?? LIMPIAR ERROR
   const clearError = () => {
     setError(null);
     if (state === AuthStates.ERROR) {
@@ -511,7 +514,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 📊 OBTENER INFORMACIÓN DE DEBUG
+  // ?? OBTENER INFORMACIóN DE DEBUG
   const getDebugInfo = () => {
     return {
       user: user ? {
@@ -538,7 +541,7 @@ export function AuthProvider({ children }) {
     };
   };
 
-  // 🎯 VALOR DEL CONTEXTO
+  // ?? VALOR DEL CONTEXTO
   const contextValue = {
     // Estados principales
     user,
@@ -574,7 +577,7 @@ export function AuthProvider({ children }) {
   );
 }
 
-// 🪝 HOOK PARA USAR EL CONTEXTO
+// ?? HOOK PARA USAR EL CONTEXTO
 export function useAuth() {
   const context = useContext(AuthContext);
   
@@ -585,13 +588,13 @@ export function useAuth() {
   return context;
 }
 
-// 🔍 HOOK PARA DEBUGGING
+// ?? HOOK PARA DEBUGGING
 export function useAuthDebug() {
   const auth = useAuth();
   
   useEffect(() => {
     if (__DEV__) {
-      console.log('🔍 Auth Debug Info:', auth.getDebugInfo());
+      console.log('?? Auth Debug Info:', auth.getDebugInfo());
     }
   }, [auth.state, auth.isLoggedIn, auth.error]);
   
