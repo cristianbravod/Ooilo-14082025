@@ -22,6 +22,7 @@ import Carta from "../components/Carta";
 import PlatoEspecial from "../components/PlatoEspecial";
 import Informes from "../components/Informes";
 import GeneradorQR from "../components/GeneradorQR";
+import UserSettings from '../screens/UserSettings';
 
 const Tab = createBottomTabNavigator();
 
@@ -122,6 +123,7 @@ export default function AppNavigator({
             Mesas: focused ? 'grid' : 'grid-outline',  // ✅ NUEVA PESTAÑA
             Informes: focused ? 'bar-chart' : 'bar-chart-outline',
             QR: focused ? 'qr-code' : 'qr-code-outline',
+            Usuario: focused ? 'person-circle' : 'person-circle-outline',
           };
           return <Ionicons name={icons[route.name]} size={size} color={color} />;
         },
@@ -147,11 +149,8 @@ export default function AppNavigator({
           <Pedidos
             {...props}
             menu={menu}
-            pedidos={pedidos}
-            setPedidos={setPedidos}
             platosEspeciales={platosEspeciales}
-            ventas={ventas}
-            setVentas={setVentas}
+            categorias={categorias}
           />
         )}
       </Tab.Screen>
@@ -217,6 +216,13 @@ export default function AppNavigator({
         component={GeneradorQR}
         options={{
           title: 'Código QR',
+        }}
+      />
+      <Tab.Screen 
+        name="Usuario"
+        component={UserSettings}
+        options={{
+          title: 'Usuario',
         }}
       />
     </Tab.Navigator>
